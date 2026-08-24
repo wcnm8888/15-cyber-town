@@ -35,7 +35,7 @@ Godot 不直连 LLM 或数据库；领域层不直接依赖 FastAPI、Godot、�
       --> Git ignore / 敏感信息复检
 ```
 
-本地与 CI 复用同一入口。安全预检在任何可能回显源码的工具前执行，同时检查 worktree 与 stage-0 Git index 内容、两套 `.gitignore` 策略、symlink/异常 mode、非 UTF-8/过大未知文本和敏感值；dotenv、JSON、YAML、TOML 按各自语义解析，扫描结果仅输出路径、行号和规则。CI 仅有仓库 `contents: read` 权限，checkout 后不持久化凭证，不读取 secrets、不启动服务容器、不调用 LLM/数据库/部署端点。runner 初始化需要下载公开 action、Python 和锁定依赖，但质量执行阶段没有业务外部服务依赖。workflow 当前只在本地完成等价命令验证；未配置 remote，因此没有远程 runner 结果。
+本地与 CI 复用同一入口。安全预检在任何可能回显源码的工具前执行，同时检查 worktree 与 stage-0 Git index 内容、两套 `.gitignore` 策略、symlink/异常 mode、非 UTF-8/过大未知文本和敏感值；dotenv、JSON、YAML、TOML 按各自语义解析，扫描结果仅输出路径、行号和规则。CI 仅有仓库 `contents: read` 权限，checkout 后不持久化凭证，不读取 secrets、不启动服务容器、不调用 LLM/数据库/部署端点。runner 初始化需要下载公开 action、Python 和锁定依赖，但质量执行阶段没有业务外部服务依赖。GitHub Actions 已在 PR #1 的 GitHub-hosted Linux runner 上运行并通过。
 
 ## 状态与一致性
 

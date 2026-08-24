@@ -29,7 +29,7 @@
 - Schema validator：开发依赖 `jsonschema 4.26.x`，用 Draft 2020-12 validator 和 UUID format checker 直接验证派生契约；`types-jsonschema` 提供严格类型检查。
 - 统一质量入口：`uv run --frozen python scripts/quality.py`，顺序运行安全预检、lock freshness、ruff、mypy、schema drift、pytest 和安全复检。
 - CI：GitHub Actions `ubuntu-latest`；checkout 与 setup-uv 固定完整 commit，uv 固定 `0.6.14`，Python 由 `.python-version` 固定为 `3.12.10`；仅 `contents: read`，无 secrets、服务容器、发布或业务外部调用。
-- Git：已创建 `main` 规划基线提交 `877746d` 和 `feat/f-001-engineering-contract-baseline`；未配置 remote。
+- Git：`origin` 指向私有仓库 `wcnm8888/15-cyber-town`；`main` 规划基线为 `877746d`，F-001 通过 `feat/f-001-engineering-contract-baseline` 和 PR #1 交付。
 - v1 契约：Pydantic v2 strict models 已实现；未知字段和类型强制转换被拒绝，JSON Schema 使用 Draft 2020-12 并由导出器确定性生成。
 
 来源： [HelloAgents 第十五章](https://github.com/datawhalechina/hello-agents/blob/main/docs/chapter15/%E7%AC%AC%E5%8D%81%E4%BA%94%E7%AB%A0%20%E6%9E%84%E5%BB%BA%E8%B5%9B%E5%8D%9A%E5%B0%8F%E9%95%87.md)、[Godot HTTPRequest](https://docs.godotengine.org/en/stable/classes/class_httprequest.html)、[FastAPI 并发说明](https://fastapi.tiangolo.com/async/)、[DeepSeek 模型与价格](https://api-docs.deepseek.com/quick_start/pricing/)、[Qdrant local mode](https://qdrant.tech/documentation/frameworks/langchain/)。

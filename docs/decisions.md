@@ -36,7 +36,7 @@
 - 状态：已锁定（F-001 / Step 0，2026-08-24）。
 - 决策：使用稳定 Python 3.12 和现有 `uv`；根 `pyproject.toml`/`uv.lock` 管理 `backend/src/cyber_town` 包，Hatchling 构建；Pydantic v2 strict models 是 v1 契约唯一源，JSON Schema 为派生产物；统一质量入口为跨平台 Python 脚本。
 - 理由：避免默认 `python` 的 3.11 RC、避免手写 schema 双重权威，并让本地/CI 使用相同锁文件和质量命令。
-- 后果：用户已授权并完成项目内 CPython 3.12.10 安装；`.tools/python`、`.cache/uv` 和 `.venv` 均受忽略规则保护。Step 1 已初始化 Git/main、提交规划基线并创建功能分支；未配置 remote。
+- 后果：用户已授权并完成项目内 CPython 3.12.10 安装；`.tools/python`、`.cache/uv` 和 `.venv` 均受忽略规则保护。Step 1 当时已初始化 Git/main、提交规划基线并创建功能分支；后续远程交付通过私有仓库和 PR #1 完成。
 
 ## ADR-007：v1 对话契约严格性与长度边界
 
@@ -57,7 +57,7 @@
 - 状态：已锁定（F-001 / Step 4，2026-08-24）。
 - 决策：GitHub Actions 仅在 `main` push、pull request 或人工触发时执行锁定环境同步和统一质量入口；顶层权限固定为 `contents: read`，checkout 设置 `persist-credentials: false`，不引用 secrets、不启动服务容器、不发布产物。
 - 供应链：`actions/checkout` 与 `astral-sh/setup-uv` 固定到官方文档所列完整 commit；uv 固定为本地已验证的 `0.6.14`，Python 固定为 `.python-version` 中的 `3.12.10`，运行/开发依赖由 `uv.lock` 固定，Hatchling 构建后端在 `pyproject.toml` 精确固定。CI 使用 `uv sync --locked` 拒绝陈旧锁文件。runner bootstrap 仍需访问公开 action/Python/包发行源，这不被描述为“完全离线”。
-- 后果：CI 没有仓库写入、部署或业务系统访问能力，本地与 CI 命令保持一致；由于当前无 remote，远程 runner 尚未执行，Step 4 只记录本地等价复现结果。
+- 后果：CI 没有仓库写入、部署或业务系统访问能力，本地与 CI 命令保持一致；Step 4 当时只记录本地等价复现结果，后续已由 PR #1 的 GitHub-hosted Linux runner 验证通过。
 
 ## ADR-010：独立 QA 后的契约与安全门禁收紧
 
@@ -71,4 +71,4 @@
 - 状态：已锁定（F-001 / Step 6，2026-08-24）。
 - 契约：外部 UUID 采用 canonical 36 字符形状，schema 同时导出 `pattern` 与固定长度，使默认 Draft 2020-12 validator 和 Pydantic 接受集一致；所有 trim 字段在 trim 前执行与 schema 相同的原始长度预算。
 - 交付扫描：worktree 与 stage-0 index 分别扫描；index blobs 使用单一 `git cat-file --batch` 进程；仓库与 staged `.gitignore` 分别按仓库受控规则验证，不受全局 excludes 或 `.git/info/exclude` 污染。dotenv、JSON、YAML、TOML 使用语义解析器，重复键、递归/过深结构和解析失败均 fail-closed。
-- 后果：用户 UAT 与最终本地门禁通过后，状态停在 `ready_for_git_delivery`；由于 remote、提交、push、PR 和远程 CI 未获授权，不归档 F-001、不进入 R-02。
+- 后果：用户 UAT 与最终本地门禁通过后，任务曾停在 `ready_for_git_delivery`；后续用户另行授权本地提交、远程仓库、push、PR、CI、合并与归档。F-001 通过 PR #1 收口，且不自动进入 R-02。
