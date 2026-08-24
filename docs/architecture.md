@@ -22,7 +22,7 @@ Godot 不直连 LLM 或数据库；领域层不直接依赖 FastAPI、Godot、�
 | `backend/domain/` | NPC/会话/关系/记忆的纯模型与规则 | 网络、ORM、LLM SDK |
 | `backend/infrastructure/` | provider、SQLite、日志、指标实现 | 业务决策 |
 
-当前已创建 `backend/src/cyber_town` 的配置与 v1 契约基础设施，以及 `backend/tests` 和派生 `contracts/v1` schema；FastAPI 路由、应用/领域编排、LLM 和存储实现仍不存在。
+当前已创建 `backend/src/cyber_town` 的配置、v1 契约基础设施和最小 `api` 包。API 只提供 `GET /api/v1/health`，精确返回固定的 service/status/api_version；`game/` 只包含一个 `Control` 诊断场景、`HTTPRequest` 客户端、有限状态映射和无第三方依赖测试。对话路由、应用/领域编排、LLM 和存储实现仍不存在。
 
 ## 工程门禁边界
 
@@ -31,11 +31,12 @@ Godot 不直连 LLM 或数据库；领域层不直接依赖 FastAPI、Godot、�
   --> uv sync --locked --all-groups
   --> scripts/quality.py
       --> Git ignore / 敏感信息预检
-      --> lock freshness --> ruff --> mypy --> schema drift --> pytest
+      --> lock freshness --> ruff --> mypy --> schema drift
+      --> Godot import/unit --> loopback connectivity/recovery --> pytest
       --> Git ignore / 敏感信息复检
 ```
 
-本地与 CI 复用同一入口。安全预检在任何可能回显源码的工具前执行，同时检查 worktree 与 stage-0 Git index 内容、两套 `.gitignore` 策略、symlink/异常 mode、非 UTF-8/过大未知文本和敏感值；dotenv、JSON、YAML、TOML 按各自语义解析，扫描结果仅输出路径、行号和规则。CI 仅有仓库 `contents: read` 权限，checkout 后不持久化凭证，不读取 secrets、不启动服务容器、不调用 LLM/数据库/部署端点。runner 初始化需要下载公开 action、Python 和锁定依赖，但质量执行阶段没有业务外部服务依赖。GitHub Actions 已在 PR #1 的 GitHub-hosted Linux runner 上运行并通过。
+本地与 CI 复用同一入口。安全预检在其他工具前执行，同时检查 worktree 与 stage-0 Git index；扫描结果只输出路径、行号和规则。集成 harness 只占用 `127.0.0.1:8000`：启动真实 FastAPI 验证 connected，并以测试专用 loopback fixture 验证 503、非法 JSON、延迟、手动 retry 和端口回收，不向生产 API 增加故障路由。CI 仅有 `contents: read`，不读取 secrets、不启动 service container、不调用业务外部系统；bootstrap 从公开发行源下载经 SHA-256 固定的 Godot 4.7.2 Linux 包。F-002 的远程 CI 与合并事实由 PR #2 记录。
 
 ## 状态与一致性
 
@@ -46,7 +47,7 @@ Godot 不直连 LLM 或数据库；领域层不直接依赖 FastAPI、Godot、�
 
 ## 失败与通信
 
-首版 REST 足够：单次输入—回复、NPC 查询和健康检查均是请求/响应。Godot 的 `HTTPRequest` 支持回调、取消和明确 timeout；每个并发请求使用独立实例/队列。后端为网络 I/O 使用 async client；同步 SQLite 操作不得阻塞事件循环。
+首版 REST 足够。当前诊断场景加载后自动发起一次健康请求，同一时刻只允许一个在途请求；3 秒 timeout 或失败后仅允许用户手动 Retry。严格匹配健康 JSON 才进入 connected；非 2xx、无效/多余/缺失字段及非 timeout 传输失败进入 unavailable；`RESULT_TIMEOUT` 进入 timeout。Windows 4.7.2 下后端未监听的真实行为实测为 timeout，503 fixture 明确覆盖 unavailable。
 
 仅当需要 token 级流式回复、服务器主动推送、多人同时状态广播或高频世界同步时，评估 WebSocket/SSE；不能因“实时”标签提前引入。
 

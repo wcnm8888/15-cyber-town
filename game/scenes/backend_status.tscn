@@ -1,0 +1,48 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/backend_status_ui.gd" id="1_ui"]
+[ext_resource type="Script" path="res://scripts/backend_health_client.gd" id="2_client"]
+
+[node name="BackendStatus" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_ui")
+
+[node name="CenterContainer" type="CenterContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="VBoxContainer" type="VBoxContainer" parent="CenterContainer"]
+custom_minimum_size = Vector2(320, 0)
+layout_mode = 2
+theme_override_constants/separation = 16
+alignment = 1
+
+[node name="TitleLabel" type="Label" parent="CenterContainer/VBoxContainer"]
+layout_mode = 2
+text = "Cyber Town Backend"
+horizontal_alignment = 1
+
+[node name="StatusLabel" type="Label" parent="CenterContainer/VBoxContainer"]
+layout_mode = 2
+text = "Connecting to backend…"
+horizontal_alignment = 1
+autowrap_mode = 2
+
+[node name="RetryButton" type="Button" parent="CenterContainer/VBoxContainer"]
+layout_mode = 2
+disabled = true
+text = "Retry"
+
+[node name="BackendHealthClient" type="Node" parent="."]
+script = ExtResource("2_client")
+
+[node name="HTTPRequest" type="HTTPRequest" parent="BackendHealthClient"]

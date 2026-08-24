@@ -1,7 +1,7 @@
 # 当前实现计划
 
-状态：`no_active_task`。
+状态：`no_active_task / F-002_delivery_via_PR_2`。
 
-当前没有获批的实现计划。F-001 的历史计划已归档至 [`../archive/task-cards/F-001-implementation-plan.md`](../archive/task-cards/F-001-implementation-plan.md)。
+当前没有获批准的实现计划。F-002 的历史计划已归档至 [`../archive/task-cards/F-002-implementation-plan.md`](../archive/task-cards/F-002-implementation-plan.md)，交付与合并事实以 GitHub PR #2 为准。
 
-等待用户从 [`roadmap.md`](roadmap.md) 选择下一候选任务并批准新任务卡；不得复用 F-001 计划或自动进入 R-02。
+下一步只能由用户从 [`roadmap.md`](roadmap.md) 选择候选任务并批准新任务卡；不得自动进入 R-03。

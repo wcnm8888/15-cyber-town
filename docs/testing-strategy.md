@@ -18,13 +18,21 @@
 
 UI 必须经过设计稿确认、冻结参考、同尺寸真实截图、用户视觉确认；自动化测试不能替代视觉验收。实现者不能是唯一验收者；高风险状态机、权限、审计和外部 provider 降级至少增加独立审查。
 
-### F-001 当前统一入口
+### 当前统一入口
 
-运行 `uv run --frozen python scripts/quality.py`。当前入口先执行 ignore/敏感信息预检，再执行 lock freshness、ruff、mypy、schema drift 和 pytest，最后复查仓库策略；全部使用本地锁定环境，不需要真实凭证或业务外部服务。
+运行 `uv run --frozen python scripts/quality.py`。入口先执行 ignore/敏感信息预检，再执行 lock freshness、ruff、mypy、schema drift、Godot editor import、GDScript 单测、真实 loopback connectivity/recovery 和 pytest，最后复查仓库策略；不需要真实凭证、LLM、数据库或业务外部服务。
 
 负向测试覆盖：worktree/index 内容分叉、staged/missing `.gitignore`、symlink/异常 mode、大小写与多种配置语法凭证键、精确 placeholder、BOM/非 UTF-8/超大文本、二进制魔数伪装、结构化配置重复键/递归/过深输入 fail-closed、敏感预检顺序、子命令缺失与失败传播、配置环境隔离、未知/多余 schema drift，以及用 Draft 2020-12 validator 在不依赖可选 format assertion 的情况下验证合法与非法 request/response/error fixtures。socket monkeypatch 只证明本地策略 helper 不触网；统一入口的离线边界由命令白名单、无外部服务配置和独立 QA 共同验证，不把该单元测试夸大为操作系统级断网证明。
 
 GitHub Actions 在 `main` push、pull request 和人工触发时先执行 `uv sync --locked --all-groups`，再运行完全相同的质量入口。workflow 不使用 secrets、写权限、服务容器或发布步骤。本地 UAT、等价复现、最终独立审查和 PR #1 的 GitHub-hosted Linux runner 验证均已通过。
+
+### F-002 自动化与 UAT 分工
+
+- API 测试覆盖 200、JSON Content-Type、精确三字段、无额外字段、GET-only、无 socket/database 副作用和启动入口。
+- GDScript 单测覆盖五态文案、严格响应解析、非 2xx、空/非法 JSON、缺失/额外/错误字段、timeout、传输失败、单在途请求和 retry。
+- `scripts/connectivity_integration.py` 使用真实 HTTPRequest：无监听服务、503、重复 JSON key、非字符串字段、redirect 拒绝、真实 FastAPI、503→retry、非法 JSON→retry、延迟→timeout→retry，共 9 个场景；redirect target 必须零请求，每个 owned process/listener 都必须退出并释放端口。
+- 自动化只验证状态机、场景资源和真实 loopback 通信。Step 6 用户 UAT 仍需在真实窗口观察布局、冻结文案、按钮可操作性及启动/停服后的恢复，不得由 headless 结果替代。
+- CI 在 runner bootstrap 下载官方 Godot 包；质量阶段只访问 runner loopback。F-002 的远程 CI 与合并结果由 PR #2 记录。
 
 ## 首切片验收草案
 

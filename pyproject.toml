@@ -9,12 +9,15 @@ description = "A testable engineering baseline for the Cyber Town AI NPC learnin
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
 dependencies = [
+  "fastapi>=0.141.1",
   "pydantic>=2.10,<3",
   "pydantic-settings>=2.7,<3",
+  "uvicorn>=0.52.4",
 ]
 
 [dependency-groups]
 dev = [
+  "httpx>=0.28.1",
   "jsonschema>=4.26,<5",
   "mypy>=1.15,<2",
   "pathspec>=1.0,<2",

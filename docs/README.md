@@ -10,7 +10,7 @@
 - 当前状态：[`project-management/progress.md`](project-management/progress.md)
 - 验收证据：[`project-management/evidence.md`](project-management/evidence.md)
 
-roadmap 与 `F-001` 已由用户确认；F-001 的实现、Step 6 用户 UAT、本地最终门禁、独立交付审查、本地/远程 Git、PR 和 CI 交付已完成。任务卡与实现计划位于 [`archive/task-cards/`](archive/task-cards/) 并随 PR #1 合并进入 `main`；最终合并事实以 GitHub 为准。当前无活动任务，未进入 R-02。未创建 `memory-bank/`，本 `docs/` 是唯一权威文档体系。
+`F-001` 已由 PR #1 交付归档；`F-002` 的任务卡与实现计划位于 [`archive/task-cards/`](archive/task-cards/)，实现、验收与归档由 PR #2 统一交付，最终 CI 与合并事实以 GitHub 为准。当前无活动任务，未进入 R-03。未创建 `memory-bank/`，本 `docs/` 是唯一权威文档体系。
 
 ## 权威文档与更新规则
 

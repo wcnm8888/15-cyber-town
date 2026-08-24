@@ -37,5 +37,19 @@ jobs:
       - name: Sync locked development environment
         run: uv sync --locked --all-groups
 
+      - name: Install pinned Godot
+        env:
+          GODOT_URL: https://github.com/godotengine/godot-builds/releases/download/4.7.2-stable/Godot_v4.7.2-stable_linux.x86_64.zip
+          GODOT_SHA256: cadd3204e728a35d3f13adb7fd0d7902636b79f6b95c40c265eb73b6c35329e4
+        run: |
+          archive="${RUNNER_TEMP}/godot.zip"
+          install_dir="${RUNNER_TEMP}/godot"
+          curl --fail --location --retry 3 --output "${archive}" "${GODOT_URL}"
+          echo "${GODOT_SHA256}  ${archive}" | sha256sum --check -
+          mkdir -p "${install_dir}"
+          unzip -q "${archive}" -d "${install_dir}"
+          chmod +x "${install_dir}/Godot_v4.7.2-stable_linux.x86_64"
+          echo "CYBER_TOWN_GODOT=${install_dir}/Godot_v4.7.2-stable_linux.x86_64" >> "${GITHUB_ENV}"
+
       - name: Run unified quality gate
         run: uv run --frozen python scripts/quality.py

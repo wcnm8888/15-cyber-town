@@ -48,9 +48,9 @@
 ## ADR-008：本地质量入口与安全扫描边界
 
 - 状态：已锁定（F-001 / Step 3，2026-08-24）。
-- 决策：`uv run --frozen python scripts/quality.py` 是统一离线入口；它先执行 ignore/敏感信息预检，再以参数数组启动 lock freshness、ruff、mypy、schema drift 和 pytest，最后复查仓库策略，不经过 shell。
+- 决策：F-001 建立的 `uv run --frozen python scripts/quality.py` 是统一入口；当时它先执行 ignore/敏感信息预检，再以参数数组启动 lock freshness、ruff、mypy、schema drift 和 pytest，最后复查仓库策略，不经过 shell。F-002 后续按 ADR-012 在同一入口增加本地 Godot 与 loopback 集成门禁。
 - 安全边界：敏感信息发现只保存路径、行号和规则名，不保存或回显匹配值；空值和完整匹配的明确 placeholder 可用于 `.env.example`。已被强制跟踪的 ignore 文件、无法按 UTF-8 读取或超过扫描上限的未知文本均 fail-closed；已知二进制按魔数识别，并继续扫描其中可解码的文本片段。
-- 后果：本地与后续 CI 可复用同一命令且无需 API key、网络或外部服务；该轻量检查不替代 Step 5 的独立 QA 或未来专用 secret scanner。
+- 后果：本地与后续 CI 可复用同一命令且无需 API key 或业务外部服务；该轻量检查不替代 Step 5 的独立 QA 或未来专用 secret scanner。
 
 ## ADR-009：最小 CI 的权限与供应链边界
 
@@ -72,3 +72,13 @@
 - 契约：外部 UUID 采用 canonical 36 字符形状，schema 同时导出 `pattern` 与固定长度，使默认 Draft 2020-12 validator 和 Pydantic 接受集一致；所有 trim 字段在 trim 前执行与 schema 相同的原始长度预算。
 - 交付扫描：worktree 与 stage-0 index 分别扫描；index blobs 使用单一 `git cat-file --batch` 进程；仓库与 staged `.gitignore` 分别按仓库受控规则验证，不受全局 excludes 或 `.git/info/exclude` 污染。dotenv、JSON、YAML、TOML 使用语义解析器，重复键、递归/过深结构和解析失败均 fail-closed。
 - 后果：用户 UAT 与最终本地门禁通过后，任务曾停在 `ready_for_git_delivery`；后续用户另行授权本地提交、远程仓库、push、PR、CI、合并与归档。F-001 通过 PR #1 收口，且不自动进入 R-02。
+
+## ADR-012：F-002 本地健康通信与 Godot 门禁
+
+- 状态：已锁定（F-002 / Step 4，2026-08-24）。
+- 通信：原生 Godot 4.7.2 Standard 使用单个 `HTTPRequest` 调用 `GET http://127.0.0.1:8000/api/v1/health`；timeout 固定 3 秒，同一时刻只允许一个请求，失败后只允许手动 retry，不启用 CORS、后台轮询或自动重试。
+- 契约：只有 HTTP 2xx 且 JSON 精确等于固定三字段时进入 connected；`RESULT_TIMEOUT` 进入 timeout，其他传输失败、非 2xx 或不严格响应进入 unavailable。UI 不显示原始响应、堆栈或内部错误。
+- 测试：统一质量入口增加 Godot editor import、无 addon GDScript unit 和真实 loopback integration。harness 使用真实 FastAPI 及测试专用 503/非法 JSON/延迟 fixture，不向生产 API 添加故障路由，并必须清理 owned process/listener、释放 8000 端口。
+- CI：runner bootstrap 从 Godot 官方 `godot-builds` 取得 4.7.2 Linux x86_64 Standard zip，并校验官方发布 SHA-256；workflow 仍为 `contents: read`、无 secrets、无 service container 或发布权限。
+- 平台裁决：用户在 Step 5 明确授权按引擎实际 result 验收停服状态；`RESULT_TIMEOUT` 显示 timeout，其他传输失败显示 unavailable，两者均须显示 Retry。Windows Godot 4.7.2 对无监听 loopback 的锁定预期为 timeout；503 fixture 确定性覆盖 unavailable。
+- 后果：F-002 只建立工程诊断连通，不授权对话、LLM、数据库、NPC 或 R-03；Windows UAT 与 GitHub Linux CI 共同覆盖平台差异，远程交付事实由 PR #2 记录。
