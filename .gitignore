@@ -1,0 +1,34 @@
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+
+# Python
+.venv/
+.tools/
+.cache/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+coverage/
+htmlcov/
+
+# Runtime data and audit artifacts
+data/*.db
+data/*.sqlite*
+data/qdrant/
+logs/
+artifacts/
+reports/
+
+# Godot generated files
+.godot/
+*.import
+
+# Editor and OS files
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store
