@@ -564,9 +564,34 @@ def test_local_policy_helpers_do_not_require_network(
 
 
 def test_quality_command_set_contains_no_network_client() -> None:
-    command_parts = {part.lower() for _, command in quality_commands() for part in command}
+    commands = quality_commands(python="python", godot="godot")
+    command_parts = {part.lower() for _, command in commands for part in command}
 
     assert command_parts.isdisjoint({"curl", "wget", "invoke-webrequest", "powershell"})
+    assert [label for label, _ in commands] == [
+        "lock",
+        "ruff",
+        "mypy",
+        "schema",
+        "godot-import",
+        "godot-unit",
+        "connectivity",
+        "pytest",
+    ]
+    assert commands[4][1] == (
+        "godot",
+        "--headless",
+        "--editor",
+        "--path",
+        "game",
+        "--quit",
+    )
+    assert commands[6][1] == (
+        "python",
+        "scripts/connectivity_integration.py",
+        "--godot",
+        "godot",
+    )
 
 
 def test_quality_runs_repository_policies_before_and_after_commands(

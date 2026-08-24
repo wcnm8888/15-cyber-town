@@ -1,10 +1,11 @@
-"""Offline quality, ignore-policy, and sensitive-information checks."""
+"""Local quality, policy, Godot, and loopback integration checks."""
 
 from __future__ import annotations
 
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tomllib
@@ -20,6 +21,11 @@ from yaml import YAMLError, compose, safe_load
 from yaml.nodes import MappingNode, Node, ScalarNode, SequenceNode
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
+GODOT_ENVIRONMENT_VARIABLE = "CYBER_TOWN_GODOT"
+EXPECTED_GODOT_VERSION_PREFIX = "4.7.2.stable."
+PINNED_WINDOWS_GODOT = Path(
+    r"E:\Agent.tools\godot\4.7.2\Godot_v4.7.2-stable_win64_console.exe"
+)
 
 EXPECTED_IGNORED_PATHS: tuple[str, ...] = (
     ".env",
@@ -127,15 +133,78 @@ class GitIndexEntry:
     object_id: str
 
 
-def quality_commands(python: str | None = None) -> tuple[tuple[str, tuple[str, ...]], ...]:
-    """Return the offline command sequence used by local development and CI."""
+def resolve_godot_executable() -> Path:
+    """Resolve the pinned engine without changing PATH or installing software."""
+
+    configured = os.environ.get(GODOT_ENVIRONMENT_VARIABLE)
+    candidates = [Path(configured)] if configured else []
+    for command_name in ("godot", "godot4"):
+        discovered = shutil.which(command_name)
+        if discovered:
+            candidates.append(Path(discovered))
+    if os.name == "nt":
+        candidates.append(PINNED_WINDOWS_GODOT)
+
+    for candidate in candidates:
+        if not candidate.is_file():
+            continue
+        try:
+            completed = subprocess.run(
+                [str(candidate), "--version"],
+                capture_output=True,
+                check=False,
+                text=True,
+                timeout=10.0,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            continue
+        if completed.returncode == 0 and completed.stdout.strip().startswith(
+            EXPECTED_GODOT_VERSION_PREFIX
+        ):
+            return candidate.resolve()
+    raise QualityCheckError(
+        f"Godot 4.7.2 stable is required; set {GODOT_ENVIRONMENT_VARIABLE} "
+        "to its executable"
+    )
+
+
+def quality_commands(
+    python: str | None = None,
+    godot: str | None = None,
+) -> tuple[tuple[str, tuple[str, ...]], ...]:
+    """Return the local command sequence used by development and CI."""
 
     interpreter = python or sys.executable
+    godot_executable = godot or str(resolve_godot_executable())
     return (
         ("lock", ("uv", "lock", "--check")),
         ("ruff", (interpreter, "-m", "ruff", "check", "backend/src", "backend/tests", "scripts")),
         ("mypy", (interpreter, "-m", "mypy", "backend/src", "backend/tests", "scripts")),
         ("schema", (interpreter, "-m", "cyber_town.contracts.export", "--check")),
+        (
+            "godot-import",
+            (godot_executable, "--headless", "--editor", "--path", "game", "--quit"),
+        ),
+        (
+            "godot-unit",
+            (
+                godot_executable,
+                "--headless",
+                "--path",
+                "game",
+                "--script",
+                "res://tests/run_tests.gd",
+            ),
+        ),
+        (
+            "connectivity",
+            (
+                interpreter,
+                "scripts/connectivity_integration.py",
+                "--godot",
+                godot_executable,
+            ),
+        ),
         ("pytest", (interpreter, "-m", "pytest")),
     )
 
@@ -660,7 +729,7 @@ def _check_repository_policies(root: Path, phase: str) -> None:
 
 
 def run_quality(root: Path = PROJECT_ROOT) -> None:
-    """Run all offline checks and fail with secret-safe diagnostics."""
+    """Run local checks and fail with secret-safe diagnostics."""
 
     _check_repository_policies(root, "preflight")
 

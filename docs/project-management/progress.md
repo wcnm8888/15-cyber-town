@@ -2,13 +2,13 @@
 
 ## 当前状态
 
-- 生命周期：`no_active_task / F-001_archive_effective_with_PR_1`。
-- 最近完成：F-001 用户 UAT、P1/P2 修复、完整 diff 审查、独立最终交付审查、本地提交、私有远程仓库、远程分支、PR #1、GitHub Actions `Quality` 与最终归档准备；已确认问题均有自动回归。
-- 已验证：统一入口完成安全预检、lock、ruff、mypy、schema、pytest 121 passed 和安全复检；当前锁文件解析 27 个包。
-- 项目事实：本地 Git 已初始化，main 基线为 `877746d`；`origin` 指向私有仓库 `wcnm8888/15-cyber-town`；同级旅行助手未修改；API、Godot、LLM、数据库仍不存在。
-- 交付事实：F-001 任务卡与实现计划由 PR #1 统一进入 `main`，最终 CI、合并状态和 merge SHA 以 GitHub 为准。
-- 当前阻塞：无活动任务；R-02 尚无获批任务卡。
+- 生命周期：`F-002_active / step_6_complete / ready_for_git_delivery`。
+- 最近完成：用户真实窗口 UAT 通过，最终本地交付审查通过；第二次独立 QA 结论仍为 NO FINDINGS。
+- 已验证：Godot 4.7.2 import/unit 和 9 个真实集成场景通过；统一入口完成 lock 38 packages、ruff、mypy 18 source files、schema、pytest 134 passed、ignore 和 sensitive 复检；Markdown 相对链接、CI workflow 静态检查与 `git diff --check` 通过。
+- 项目事实：当前分支为 `feat/f-002-godot-fastapi-connectivity`，起点/main/origin main 为 `de6d66e`；健康 API 与低保真 Godot 诊断项目已真实连通；LLM、数据库、NPC 和 R-03 仍不存在。
+- 交付事实：F-002 尚未提交、推送、创建 PR、运行远程 CI、合并或归档。
+- 当前阻塞：无技术阻塞；Git 提交、push、PR、远程 CI、合并和归档尚未授权或执行。
 
 ## 下一批准动作
 
-等待用户从 roadmap 选择下一候选任务并批准新任务卡。不得自动进入 R-02，也不得复用 F-001 的授权。
+等待用户另行授权 F-002 Git 交付。不得自动提交、推送、创建 PR、归档或进入 R-03。

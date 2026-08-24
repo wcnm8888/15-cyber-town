@@ -2,8 +2,8 @@
 
 | 领域 | 推荐候选 | 解决的问题 | 替代项 / 成本 | 本轮结论与验证 |
 | --- | --- | --- | --- | --- |
-| 游戏前端 | Godot 4.x + GDScript | 2D 场景、输入、动画和 UI | Web/Unity；Godot 学习成本低且适合目标 | 保留。后续验证最小场景、`HTTPRequest` 超时/取消与 JSON 契约。 |
-| API | Python 3.12 + FastAPI + Pydantic v2 | schema、错误语义、异步编排、OpenAPI | Flask/Starlette；FastAPI 需谨慎处理阻塞库 | Step 1 已建立 Python 3.12.10、Pydantic 配置基线与锁文件；FastAPI 路由尚未进入范围。 |
+| 游戏前端 | Godot 4.7.2 Standard + GDScript | 2D 场景、输入、动画和 UI | Web/Unity；Godot 学习成本低且适合目标 | F-002 已验证 Windows x86_64 普通/headless、最小场景、`HTTPRequest`、3 秒 timeout、严格 JSON 与手动 retry；无 addon、.NET 或 export templates。 |
+| API | Python 3.12 + FastAPI 0.141.1 + Pydantic v2 | schema、错误语义、异步编排、OpenAPI | Flask/Starlette；FastAPI 需谨慎处理阻塞库 | 已锁定 Uvicorn 0.52.4、HTTPX 0.28.1，并实现只读 `GET /api/v1/health`；尚无对话路由或编排。 |
 | LLM | DeepSeek `deepseek-v4-flash`，经 Provider adapter | 快速角色对话、JSON 分类/结构化输出 | 其他 OpenAI-compatible 模型；成本和可用性外部化 | 候选而非锁定。后续仅以真实 API 评估延迟、成本、中文 persona 与安全行为。 |
 | Agent runtime | 自建轻量领域运行时 | 显式控制上下文、状态、日志和安全边界 | HelloAgents；后者适合作为学习对照 | 倾向自建；先做 provider/agent 端口，避免框架锁定。 |
 | 结构化状态 | SQLite | 本地开发的关系、会话、审计索引与事务 | PostgreSQL；后者留给多人/部署阶段 | 第一阶段采用 SQLite，需定义迁移、约束、索引与备份策略。 |
@@ -31,6 +31,14 @@
 - CI：GitHub Actions `ubuntu-latest`；checkout 与 setup-uv 固定完整 commit，uv 固定 `0.6.14`，Python 由 `.python-version` 固定为 `3.12.10`；仅 `contents: read`，无 secrets、服务容器、发布或业务外部调用。
 - Git：`origin` 指向私有仓库 `wcnm8888/15-cyber-town`；`main` 规划基线为 `877746d`，F-001 通过 `feat/f-001-engineering-contract-baseline` 和 PR #1 交付。
 - v1 契约：Pydantic v2 strict models 已实现；未知字段和类型强制转换被拒绝，JSON Schema 使用 Draft 2020-12 并由导出器确定性生成。
+
+## F-002 连通基线
+
+- Godot：4.7.2-stable Standard；Windows 便携工具固定在批准路径，CI 使用官方 Linux x86_64 Standard zip 和发布资产 SHA-256。
+- 本地 API：`uv run --frozen python -m cyber_town.api`，默认只监听 `127.0.0.1:8000`。
+- 游戏入口：`game/project.godot`，单一 `Control` 场景；原生桌面 HTTPRequest 不启用 CORS。
+- 统一门禁已扩展为 Godot editor import、GDScript unit、9 个真实 loopback 场景和 Python pytest；集成工具不访问公网、LLM 或数据库，并验证 redirect target 不被访问。
+- 已验证事实：Windows Godot 4.7.2 对无监听 loopback 的结果为 `RESULT_TIMEOUT`；非 2xx fixture 映射为 unavailable。该平台差异保留给 Step 5 与用户 UAT 复核。
 
 来源： [HelloAgents 第十五章](https://github.com/datawhalechina/hello-agents/blob/main/docs/chapter15/%E7%AC%AC%E5%8D%81%E4%BA%94%E7%AB%A0%20%E6%9E%84%E5%BB%BA%E8%B5%9B%E5%8D%9A%E5%B0%8F%E9%95%87.md)、[Godot HTTPRequest](https://docs.godotengine.org/en/stable/classes/class_httprequest.html)、[FastAPI 并发说明](https://fastapi.tiangolo.com/async/)、[DeepSeek 模型与价格](https://api-docs.deepseek.com/quick_start/pricing/)、[Qdrant local mode](https://qdrant.tech/documentation/frameworks/langchain/)。
 

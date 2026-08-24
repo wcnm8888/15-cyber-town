@@ -1,4 +1,4 @@
-"""Run the project's offline quality gate."""
+"""Run the project's local quality and loopback integration gate."""
 
 from cyber_town.quality import main
 
