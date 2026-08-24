@@ -22,7 +22,20 @@ Godot 不直连 LLM 或数据库；领域层不直接依赖 FastAPI、Godot、�
 | `backend/domain/` | NPC/会话/关系/记忆的纯模型与规则 | 网络、ORM、LLM SDK |
 | `backend/infrastructure/` | provider、SQLite、日志、指标实现 | 业务决策 |
 
-目录仅是规划，尚未创建代码目录或业务文件。
+当前已创建 `backend/src/cyber_town` 的配置与 v1 契约基础设施，以及 `backend/tests` 和派生 `contracts/v1` schema；FastAPI 路由、应用/领域编排、LLM 和存储实现仍不存在。
+
+## 工程门禁边界
+
+```text
+开发者 / GitHub Actions
+  --> uv sync --locked --all-groups
+  --> scripts/quality.py
+      --> Git ignore / 敏感信息预检
+      --> lock freshness --> ruff --> mypy --> schema drift --> pytest
+      --> Git ignore / 敏感信息复检
+```
+
+本地与 CI 复用同一入口。安全预检在任何可能回显源码的工具前执行，同时检查 worktree 与 stage-0 Git index 内容、两套 `.gitignore` 策略、symlink/异常 mode、非 UTF-8/过大未知文本和敏感值；dotenv、JSON、YAML、TOML 按各自语义解析，扫描结果仅输出路径、行号和规则。CI 仅有仓库 `contents: read` 权限，checkout 后不持久化凭证，不读取 secrets、不启动服务容器、不调用 LLM/数据库/部署端点。runner 初始化需要下载公开 action、Python 和锁定依赖，但质量执行阶段没有业务外部服务依赖。workflow 当前只在本地完成等价命令验证；未配置 remote，因此没有远程 runner 结果。
 
 ## 状态与一致性
 

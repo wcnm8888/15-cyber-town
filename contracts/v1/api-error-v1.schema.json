@@ -1,0 +1,54 @@
+{
+  "$defs": {
+    "ApiErrorCode": {
+      "description": "Stable public errors; internal exception details are never exposed.",
+      "enum": [
+        "validation_error",
+        "npc_not_found",
+        "conflict",
+        "provider_timeout",
+        "provider_unavailable",
+        "unsafe_content",
+        "internal_error"
+      ],
+      "title": "ApiErrorCode",
+      "type": "string"
+    }
+  },
+  "$id": "https://cyber-town.local/schemas/v1/api-error-v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "A safe public failure payload correlated by trace identifier.",
+  "properties": {
+    "code": {
+      "$ref": "#/$defs/ApiErrorCode"
+    },
+    "message": {
+      "maxLength": 500,
+      "minLength": 1,
+      "pattern": "\\S",
+      "title": "Message",
+      "type": "string"
+    },
+    "retryable": {
+      "title": "Retryable",
+      "type": "boolean"
+    },
+    "trace_id": {
+      "format": "uuid",
+      "maxLength": 36,
+      "minLength": 36,
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+      "title": "Trace Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "trace_id",
+    "code",
+    "message",
+    "retryable"
+  ],
+  "title": "ApiErrorV1",
+  "type": "object"
+}

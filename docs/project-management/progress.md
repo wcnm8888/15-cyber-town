@@ -2,12 +2,13 @@
 
 ## 当前状态
 
-- 生命周期：`F-001_approved / Step_0_completed / blocked_before_Step_1`。
-- 已完成：用户已批准 `F-001`；Step 0 已核对工具并锁定 Python、包管理、布局、契约源、质量入口和 Git 初始化方案；implementation plan 已建立。
-- 已验证：目标目录在启动前不存在；同级旅行助手目录存在且未被修改；父目录不是 Git 仓库；本项目尚未初始化 Git。
-- 未完成：稳定 Python 3.12 获取、Step 1 授权、依赖安装、Git 初始化/分支、代码、测试、真实服务、UI 与 Git/PR/CI。
-- 阻塞：Python 3.12/3.13 注册路径失效，唯一可启动版本是 `3.11.0rc2`；需要用户授权 `uv` 获取 Python 3.12。
+- 生命周期：`F-001_approved / local_commit_completed / committed_locally_awaiting_remote_delivery`。
+- 已完成：用户 UAT、P1/P2 修复、完整 tracked/untracked diff 审查、独立最终交付审查与单次本地提交；已确认问题均有自动回归。
+- 已验证：统一入口完成安全预检、lock、ruff、mypy、schema、pytest 121 passed 和安全复检；当前锁文件解析 27 个包。
+- 项目事实：本地 Git 已初始化，main 基线为 `877746d`；同级旅行助手未修改；API、Godot、LLM、数据库仍不存在。
+- 未完成：remote 配置、push、PR、远程 runner 证明与 F-001 最终归档。
+- 阻塞：当前无 remote，且远程写入与归档均未获授权；本地提交已经完成。
 
-## 唯一下一批准动作
+## 下一批准动作
 
-用户授权由 `uv` 将 Python 3.12 下载到项目内 `.tools/python`（缓存 `.cache/uv`），并允许进入 `F-001 / Step 1`；否则保持停止。
+等待用户另行授权远程 Git 交付动作；未获授权前不 amend、配置 remote、推送、创建 PR、归档 F-001 或进入 R-02。

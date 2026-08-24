@@ -3,7 +3,7 @@
 | 领域 | 推荐候选 | 解决的问题 | 替代项 / 成本 | 本轮结论与验证 |
 | --- | --- | --- | --- | --- |
 | 游戏前端 | Godot 4.x + GDScript | 2D 场景、输入、动画和 UI | Web/Unity；Godot 学习成本低且适合目标 | 保留。后续验证最小场景、`HTTPRequest` 超时/取消与 JSON 契约。 |
-| API | Python 3.12 + FastAPI + Pydantic v2 | schema、错误语义、异步编排、OpenAPI | Flask/Starlette；FastAPI 需谨慎处理阻塞库 | Step 0 已锁定 Python 3.12；本机稳定运行时缺失，待授权由 `uv` 获取。后续用 API contract 与集成测试验证。 |
+| API | Python 3.12 + FastAPI + Pydantic v2 | schema、错误语义、异步编排、OpenAPI | Flask/Starlette；FastAPI 需谨慎处理阻塞库 | Step 1 已建立 Python 3.12.10、Pydantic 配置基线与锁文件；FastAPI 路由尚未进入范围。 |
 | LLM | DeepSeek `deepseek-v4-flash`，经 Provider adapter | 快速角色对话、JSON 分类/结构化输出 | 其他 OpenAI-compatible 模型；成本和可用性外部化 | 候选而非锁定。后续仅以真实 API 评估延迟、成本、中文 persona 与安全行为。 |
 | Agent runtime | 自建轻量领域运行时 | 显式控制上下文、状态、日志和安全边界 | HelloAgents；后者适合作为学习对照 | 倾向自建；先做 provider/agent 端口，避免框架锁定。 |
 | 结构化状态 | SQLite | 本地开发的关系、会话、审计索引与事务 | PostgreSQL；后者留给多人/部署阶段 | 第一阶段采用 SQLite，需定义迁移、约束、索引与备份策略。 |
@@ -21,13 +21,16 @@
 
 ## F-001 Step 0 工具链锁定
 
-- Python：项目基线 `3.12`，不使用本机可启动但为预发布版本的 `3.11.0rc2`；如获授权，由 `uv` 安装到项目内 `E:\Agent\comprehensive-cases\15-cyber-town\.tools\python`，缓存放在 `.cache\uv`，避免新增 C 盘工具产物。
+- Python：项目基线 `3.12`；已由 `uv` 安装 3.12.10 到项目内 `.tools/python`，缓存位于 `.cache/uv`；两者与 `.venv` 均被 Git 忽略。
 - 包与解释器管理：现有 `uv 0.6.14`；根目录维护 `pyproject.toml` 与 `uv.lock`，直接依赖使用兼容范围，锁文件固定实际解析版本。
 - 包布局：`backend/src/cyber_town/` + `backend/tests/`；根 `pyproject.toml` 统一管理。
-- 构建后端：Hatchling；仅用于可安装包基线，不引入服务路由。
+- 构建后端：Hatchling `1.27.0`；在 `pyproject.toml` 精确固定，仅用于可安装包基线，不引入服务路由。
 - 契约唯一源：`backend/src/cyber_town/contracts/v1.py` 的 Pydantic v2 strict models（`extra=forbid`）；`contracts/v1/*.schema.json` 为可重复生成的派生产物。
-- 统一质量入口：`uv run --frozen python scripts/quality.py`，顺序运行 ruff、mypy、pytest、schema drift、忽略规则和敏感信息检查。
-- Git：Step 1 才执行 `git init -b main`，审阅并提交现有规划基线，然后创建 `feat/f-001-engineering-contract-baseline`；不配置 remote。
+- Schema validator：开发依赖 `jsonschema 4.26.x`，用 Draft 2020-12 validator 和 UUID format checker 直接验证派生契约；`types-jsonschema` 提供严格类型检查。
+- 统一质量入口：`uv run --frozen python scripts/quality.py`，顺序运行安全预检、lock freshness、ruff、mypy、schema drift、pytest 和安全复检。
+- CI：GitHub Actions `ubuntu-latest`；checkout 与 setup-uv 固定完整 commit，uv 固定 `0.6.14`，Python 由 `.python-version` 固定为 `3.12.10`；仅 `contents: read`，无 secrets、服务容器、发布或业务外部调用。
+- Git：已创建 `main` 规划基线提交 `877746d` 和 `feat/f-001-engineering-contract-baseline`；未配置 remote。
+- v1 契约：Pydantic v2 strict models 已实现；未知字段和类型强制转换被拒绝，JSON Schema 使用 Draft 2020-12 并由导出器确定性生成。
 
 来源： [HelloAgents 第十五章](https://github.com/datawhalechina/hello-agents/blob/main/docs/chapter15/%E7%AC%AC%E5%8D%81%E4%BA%94%E7%AB%A0%20%E6%9E%84%E5%BB%BA%E8%B5%9B%E5%8D%9A%E5%B0%8F%E9%95%87.md)、[Godot HTTPRequest](https://docs.godotengine.org/en/stable/classes/class_httprequest.html)、[FastAPI 并发说明](https://fastapi.tiangolo.com/async/)、[DeepSeek 模型与价格](https://api-docs.deepseek.com/quick_start/pricing/)、[Qdrant local mode](https://qdrant.tech/documentation/frameworks/langchain/)。
 

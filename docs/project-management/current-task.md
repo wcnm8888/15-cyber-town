@@ -1,19 +1,27 @@
 # 任务卡：F-001 工程与契约基线
 
 - 来源：roadmap `R-01`。
-- 状态：`approved / Step 0 completed / blocked_before_Step_1`。
+- 状态：`approved / local commit completed / committed_locally_awaiting_remote_delivery`。
 - 分支计划：`feat/f-001-engineering-contract-baseline`，目标分支 `main`。
-- 当前限制：Step 0 只读核对已完成。稳定 Python 缺失；在用户授权 `uv` 获取 Python 3.12 并明确允许进入 Step 1 前，不初始化 Git、不创建分支、不安装解释器/依赖、不写业务代码。
+- 当前限制：本地提交已完成；未获新授权前不得 amend、推送、配置 remote、创建 PR、归档 F-001 或进入 R-02。
 
 ## 当前 Step 事实（2026-08-24）
 
 - 用户已明确批准本任务卡并允许执行 Step 0。
 - Git：`2.49.0.windows.1`，可用；全局提交身份已配置（未读取或记录具体值）。
 - `uv`：`0.6.14`，可用。
-- Python Launcher 注册了 3.10–3.13，但 3.10、3.12、3.13 指向不存在的解释器；`uv python find 3.12` 同样失败。
-- 唯一可启动解释器是 `Python 3.11.0rc2`，属于预发布版本，不接受为新项目基线。
+- 原有 Python Launcher 注册的 3.10、3.12、3.13 路径失效；默认解释器仍是 `Python 3.11.0rc2`，项目不使用它。
+- 用户授权后，`uv` 已在项目 `.tools/python` 安装 CPython 3.12.10，并在 `.venv` 建立锁定环境。
 - 决策已锁定：Python 3.12、uv、根 `pyproject.toml`/`uv.lock`、Hatchling、`backend/src` 布局、Pydantic v2 契约唯一源、派生 JSON Schema、跨平台 Python 质量入口。
-- 阻塞：用户尚未授权 `uv python install 3.12 --install-dir <项目>\.tools\python --cache-dir <项目>\.cache\uv`；Step 1 尚未获准执行。执行前先把 `.tools/` 与 `.cache/` 加入 `.gitignore`。
+- Git 已初始化：`main` 规划基线提交 `877746d`；当前分支 `feat/f-001-engineering-contract-baseline`；无 remote。
+- Step 1 已创建根 `pyproject.toml`、`uv.lock`、`.python-version`、编辑器/行尾规则、Python 包骨架、安全配置模块和 5 个配置测试。
+- Step 2 已创建 strict `DialogueRequestV1`、`DialogueResponseV1`、`ApiErrorV1`、稳定枚举、确定性 schema 导出/漂移检查和三个 Draft 2020-12 schema。
+- Step 3 已创建 `scripts/quality.py` 薄入口、可测试的离线质量模块、Git ignore 与敏感信息检查和 7 个质量/安全测试。
+- Step 4 已创建只读、无 secrets、无服务容器的 GitHub Actions workflow，并同步 README、架构、技术、测试和 ADR。
+- Step 5 首轮独立 QA 为 12 pass / 4 fail；失败及专项审查发现已修复。全新独立复验又发现 Windows Git index mode `120000` 绕过，修复后由同一独立 QA 按原复现复验通过。
+- Step 6 用户 UAT 在独立 E 盘环境通过；后续 P1/P2 修复、负向测试和独立交付审查均在授权范围内完成。
+- 当前门禁：统一命令通过；pytest 121 passed、schema/lock drift passed、ruff passed、mypy 对 12 个源文件通过，安全预检与复检通过；锁文件解析 27 个包。
+- 当前交付状态：`committed_locally_awaiting_remote_delivery`。无 remote，未推送、创建 PR 或运行远程 CI。
 
 ## 用户目标
 
@@ -26,7 +34,7 @@
 ## 范围
 
 1. 初始化本地 Git 仓库、`main` 与本任务功能分支；远程、push 和 PR 仍需单独授权。
-2. 建立 Python 后端 `src`/tests 工程骨架、`pyproject.toml` 与锁文件；使用 Python 3.11+ 的已安装运行时，不静默安装系统软件。
+2. 建立 Python 后端 `src`/tests 工程骨架、`pyproject.toml` 与锁文件；使用项目内 Python 3.12，不静默安装系统软件。
 3. 定义版本化的 `DialogueRequest`、`DialogueResponse`、`ApiError`、标识符、trace 与 provider 状态契约，并能导出稳定 JSON Schema。
 4. 建立环境配置校验：默认 local/test 可无真实 key；启用真实 provider 时空 key 必须失败；日志/错误不得包含凭证。
 5. 建立 ruff、mypy、pytest、schema snapshot/契约测试和统一的本地质量入口；准备最小 CI workflow，但不推送。
@@ -43,7 +51,7 @@
 
 ## 前置条件
 
-- 当前项目：`E:\Agent\comprehensive-cases\15-cyber-town`；当前无 Git 仓库。
+- 当前项目：`E:\Agent\comprehensive-cases\15-cyber-town`；当前位于本地功能分支，无 remote。
 - 当前权威文档：项目 `AGENTS.md`、`docs/README.md`、product brief、architecture、tech stack、testing strategy、decisions 与 approved roadmap。
 - 依赖任务：项目启动规划已完成；无代码依赖。
 - 环境边界：仅 `local/test/synthetic`；无 production-like/production，禁止真实外部系统。
@@ -178,16 +186,16 @@
 
 ## 完成定义
 
-- [ ] 任务卡已获用户批准，且实现未超出允许文件范围。
-- [ ] 契约、配置、安全和文档验收标准全部通过，负向/边界测试有红绿证据。
-- [ ] ruff、mypy、pytest、schema、忽略规则和敏感信息检查通过。
-- [ ] 独立 QA 与用户 UAT 完成；无真实外部请求或真实凭证。
-- [ ] CI 配置不依赖 secrets，已在可用环境验证；若远程未授权，状态明确停在 `ready_for_git_delivery`，任务不伪报完成。
-- [ ] Git diff 无无关文件；提交、PR、CI 证据按实际授权完整记录。
-- [ ] README、docs map、architecture、testing、decisions、roadmap、current-task、progress、evidence 与 Git/代码事实一致。
+- [x] 任务卡已获用户批准，且实现未超出允许文件范围。
+- [x] 契约、配置、安全和文档验收标准全部通过，负向/边界测试有红绿证据。
+- [x] ruff、mypy、pytest、schema、忽略规则和敏感信息检查通过。
+- [x] 独立 QA 与用户 UAT 完成；无真实外部请求或真实凭证。
+- [x] CI 配置不依赖 secrets，已在本地等价环境验证；远程未授权，状态明确停在 `ready_for_git_delivery`。
+- [x] Git diff 无无关文件；提交、PR、CI 证据按实际授权明确记录为未执行。
+- [x] README、docs map、architecture、testing、decisions、roadmap、current-task、progress、evidence 与 Git/代码事实一致。
 - [ ] 任务完成后按项目规则归档，current-task 重置为“无活动任务”；不自动开始 R-02。
-- [ ] 没有修改旅行助手、没有敏感信息、没有业务 API/Godot/LLM/数据库实现。
+- [x] 没有修改旅行助手、没有敏感信息、没有业务 API/Godot/LLM/数据库实现。
 
 ## 审批结论
 
-任务卡已获批准，Step 0 已按授权完成。当前停在工具链门禁；下一动作必须同时取得“允许 `uv` 将 Python 3.12 下载到项目内 `.tools/python`（缓存 `.cache/uv`）”和“允许进入 `F-001 / Step 1`”的明确授权。
+Step 6 用户 UAT、本地最终门禁、P1/P2 修复、独立交付审查和本地提交已完成，当前为 `committed_locally_awaiting_remote_delivery`。F-001 尚未归档；不得自行 amend、推送、配置 remote、创建 PR 或进入 R-02。

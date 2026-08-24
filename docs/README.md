@@ -10,7 +10,7 @@
 - 当前状态：[`project-management/progress.md`](project-management/progress.md)
 - 验收证据：[`project-management/evidence.md`](project-management/evidence.md)
 
-roadmap 与 `F-001` 已由用户确认；Step 0 已完成并因稳定 Python 运行时缺失停在工具链门禁。未创建 `memory-bank/`，本 `docs/` 是唯一权威文档体系。
+roadmap 与 `F-001` 已由用户确认；Step 6 用户 UAT、本地最终门禁、独立交付审查和本地提交已完成，当前为 `committed_locally_awaiting_remote_delivery`。未配置 remote、推送、运行远程 CI、归档 F-001 或进入 R-02。未创建 `memory-bank/`，本 `docs/` 是唯一权威文档体系。
 
 ## 权威文档与更新规则
 
@@ -31,7 +31,7 @@ roadmap 与 `F-001` 已由用户确认；Step 0 已完成并因稳定 Python 运
 | `project-management/evidence.md` | 可复现的检查与验收结论索引 | 完成验证时 | 是，脱敏 |
 | `archive/task-cards/` | 已关闭任务卡 | 任务合并并收口后 | 是 |
 
-发生冲突时：当前代码、Schema、测试和 Git 事实 > 用户已批准范围/任务卡/设计稿 > 当前架构与测试文档 > roadmap、progress、evidence > archive、聊天记录。当前没有代码与任务卡，用户已锁定的启动范围优先。
+发生冲突时：当前代码、Schema、测试和 Git 事实 > 用户已批准范围/任务卡/设计稿 > 当前架构与测试文档 > roadmap、progress、evidence > archive、聊天记录。当前代码和已批准任务卡优先于过期状态摘要。
 
 ## 读取最小集
 
