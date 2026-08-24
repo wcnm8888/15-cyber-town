@@ -1,6 +1,6 @@
 # F-001 Implementation Plan
 
-状态：`local commit completed / committed_locally_awaiting_remote_delivery`。本计划隶属于已批准任务卡 [`current-task.md`](current-task.md)，不得扩展 R-02/R-03。
+状态：`remote CI passed / remote_ci_passed_awaiting_pr_merge`。本计划隶属于已批准任务卡 [`current-task.md`](current-task.md)，不得扩展 R-02/R-03。
 
 ## Step 0 — 工具与决策锁定
 
@@ -68,11 +68,11 @@
 
 ## Step 6 — UAT 与 Git 交付门禁
 
-状态：`local commit completed / awaiting remote delivery`。
+状态：`remote CI passed / awaiting PR merge`。
 
 用户按 README 在 `E:\Agent\.uat\15-cyber-town-f001-step6-20260824-191608` 验证 Python 3.12.10、独立环境路径、pytest 与统一质量命令，结果 PASS。随后在授权范围内修复最终审查发现的 P1/P2，并将契约一致性、worktree/index、ignore、结构化配置、失败传播与性能负例纳入回归。最终统一入口 pytest 121 passed，ruff/mypy/schema/lock/ignore/sensitive 全通过，独立测试/可维护性/性能审查无剩余阻塞。
 
-本地交付提交已完成，状态为 `committed_locally_awaiting_remote_delivery`。无 remote，未 push、创建 PR、运行远程 CI、归档 F-001 或进入 R-02；这些动作必须另行授权。
+本地交付提交、私有远程仓库、`origin`、远程 `main`/功能分支、PR #1 和 GitHub Actions `Quality` 已完成，状态为 `remote_ci_passed_awaiting_pr_merge`。未合并 PR、归档 F-001 或进入 R-02；这些动作必须另行授权。
 
 ## 停止条件
 

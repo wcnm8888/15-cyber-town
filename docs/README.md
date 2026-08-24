@@ -10,7 +10,7 @@
 - 当前状态：[`project-management/progress.md`](project-management/progress.md)
 - 验收证据：[`project-management/evidence.md`](project-management/evidence.md)
 
-roadmap 与 `F-001` 已由用户确认；Step 6 用户 UAT、本地最终门禁、独立交付审查和本地提交已完成，当前为 `committed_locally_awaiting_remote_delivery`。未配置 remote、推送、运行远程 CI、归档 F-001 或进入 R-02。未创建 `memory-bank/`，本 `docs/` 是唯一权威文档体系。
+roadmap 与 `F-001` 已由用户确认；Step 6 用户 UAT、本地最终门禁、独立交付审查、本地提交、远程分支交付、PR #1 和远程 CI 已完成，当前为 `remote_ci_passed_awaiting_pr_merge`。尚未合并 PR、归档 F-001 或进入 R-02。未创建 `memory-bank/`，本 `docs/` 是唯一权威文档体系。
 
 ## 权威文档与更新规则
 

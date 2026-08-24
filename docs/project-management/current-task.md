@@ -1,9 +1,9 @@
 # 任务卡：F-001 工程与契约基线
 
 - 来源：roadmap `R-01`。
-- 状态：`approved / local commit completed / committed_locally_awaiting_remote_delivery`。
+- 状态：`approved / remote CI passed / remote_ci_passed_awaiting_pr_merge`。
 - 分支计划：`feat/f-001-engineering-contract-baseline`，目标分支 `main`。
-- 当前限制：本地提交已完成；未获新授权前不得 amend、推送、配置 remote、创建 PR、归档 F-001 或进入 R-02。
+- 当前限制：远程分支、PR 和 CI 交付已完成；未获新授权前不得 amend、合并 PR、tag、归档 F-001 或进入 R-02。
 
 ## 当前 Step 事实（2026-08-24）
 
@@ -13,7 +13,7 @@
 - 原有 Python Launcher 注册的 3.10、3.12、3.13 路径失效；默认解释器仍是 `Python 3.11.0rc2`，项目不使用它。
 - 用户授权后，`uv` 已在项目 `.tools/python` 安装 CPython 3.12.10，并在 `.venv` 建立锁定环境。
 - 决策已锁定：Python 3.12、uv、根 `pyproject.toml`/`uv.lock`、Hatchling、`backend/src` 布局、Pydantic v2 契约唯一源、派生 JSON Schema、跨平台 Python 质量入口。
-- Git 已初始化：`main` 规划基线提交 `877746d`；当前分支 `feat/f-001-engineering-contract-baseline`；无 remote。
+- Git 已初始化：`main` 规划基线提交 `877746d`；当前分支 `feat/f-001-engineering-contract-baseline`；`origin` 指向私有仓库 `wcnm8888/15-cyber-town`。
 - Step 1 已创建根 `pyproject.toml`、`uv.lock`、`.python-version`、编辑器/行尾规则、Python 包骨架、安全配置模块和 5 个配置测试。
 - Step 2 已创建 strict `DialogueRequestV1`、`DialogueResponseV1`、`ApiErrorV1`、稳定枚举、确定性 schema 导出/漂移检查和三个 Draft 2020-12 schema。
 - Step 3 已创建 `scripts/quality.py` 薄入口、可测试的离线质量模块、Git ignore 与敏感信息检查和 7 个质量/安全测试。
@@ -21,7 +21,7 @@
 - Step 5 首轮独立 QA 为 12 pass / 4 fail；失败及专项审查发现已修复。全新独立复验又发现 Windows Git index mode `120000` 绕过，修复后由同一独立 QA 按原复现复验通过。
 - Step 6 用户 UAT 在独立 E 盘环境通过；后续 P1/P2 修复、负向测试和独立交付审查均在授权范围内完成。
 - 当前门禁：统一命令通过；pytest 121 passed、schema/lock drift passed、ruff passed、mypy 对 12 个源文件通过，安全预检与复检通过；锁文件解析 27 个包。
-- 当前交付状态：`committed_locally_awaiting_remote_delivery`。无 remote，未推送、创建 PR 或运行远程 CI。
+- 当前交付状态：`remote_ci_passed_awaiting_pr_merge`。远程 `main` 与功能分支已推送，PR #1 已创建，GitHub Actions `Quality` 已通过；尚未合并或归档。
 
 ## 用户目标
 
@@ -51,7 +51,7 @@
 
 ## 前置条件
 
-- 当前项目：`E:\Agent\comprehensive-cases\15-cyber-town`；当前位于本地功能分支，无 remote。
+- 当前项目：`E:\Agent\comprehensive-cases\15-cyber-town`；当前位于跟踪 `origin/feat/f-001-engineering-contract-baseline` 的本地功能分支。
 - 当前权威文档：项目 `AGENTS.md`、`docs/README.md`、product brief、architecture、tech stack、testing strategy、decisions 与 approved roadmap。
 - 依赖任务：项目启动规划已完成；无代码依赖。
 - 环境边界：仅 `local/test/synthetic`；无 production-like/production，禁止真实外部系统。
@@ -61,7 +61,7 @@
 
 - 输入：已批准架构边界、`R-01` 范围、空凭证 `.env.example`、本机可用开发工具事实。
 - 输出：可安装/可校验的后端工程基线、唯一契约源及 JSON Schema、测试和质量配置、本地 CI 配置、更新后的开发文档。
-- 关键状态变化：目录从“纯文档、无 Git”变为“本地 Git 工程 + `F-001` 分支 + 可运行门禁”；仍无可运行 API、游戏或真实 Agent。
+- 关键状态变化：目录从“纯文档、无 Git”变为“本地/远程 Git 工程 + `F-001` PR + 本地与远程可运行门禁”；仍无可运行 API、游戏或真实 Agent。
 
 ## 契约草案
 
@@ -190,12 +190,12 @@
 - [x] 契约、配置、安全和文档验收标准全部通过，负向/边界测试有红绿证据。
 - [x] ruff、mypy、pytest、schema、忽略规则和敏感信息检查通过。
 - [x] 独立 QA 与用户 UAT 完成；无真实外部请求或真实凭证。
-- [x] CI 配置不依赖 secrets，已在本地等价环境验证；远程未授权，状态明确停在 `ready_for_git_delivery`。
-- [x] Git diff 无无关文件；提交、PR、CI 证据按实际授权明确记录为未执行。
+- [x] CI 配置不依赖 secrets，已在本地等价环境和 PR #1 的 GitHub-hosted Linux runner 验证。
+- [x] Git diff 无无关文件；本地提交、远程分支、PR 和 CI 证据已按实际授权记录。
 - [x] README、docs map、architecture、testing、decisions、roadmap、current-task、progress、evidence 与 Git/代码事实一致。
 - [ ] 任务完成后按项目规则归档，current-task 重置为“无活动任务”；不自动开始 R-02。
 - [x] 没有修改旅行助手、没有敏感信息、没有业务 API/Godot/LLM/数据库实现。
 
 ## 审批结论
 
-Step 6 用户 UAT、本地最终门禁、P1/P2 修复、独立交付审查和本地提交已完成，当前为 `committed_locally_awaiting_remote_delivery`。F-001 尚未归档；不得自行 amend、推送、配置 remote、创建 PR 或进入 R-02。
+Step 6 用户 UAT、本地最终门禁、P1/P2 修复、独立交付审查、本地提交、远程分支交付、PR #1 和远程 CI 已完成，当前为 `remote_ci_passed_awaiting_pr_merge`。F-001 尚未合并或归档；不得自行 amend、合并 PR、tag 或进入 R-02。
