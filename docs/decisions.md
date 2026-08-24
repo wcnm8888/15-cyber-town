@@ -81,4 +81,4 @@
 - 测试：统一质量入口增加 Godot editor import、无 addon GDScript unit 和真实 loopback integration。harness 使用真实 FastAPI 及测试专用 503/非法 JSON/延迟 fixture，不向生产 API 添加故障路由，并必须清理 owned process/listener、释放 8000 端口。
 - CI：runner bootstrap 从 Godot 官方 `godot-builds` 取得 4.7.2 Linux x86_64 Standard zip，并校验官方发布 SHA-256；workflow 仍为 `contents: read`、无 secrets、无 service container 或发布权限。
 - 平台裁决：用户在 Step 5 明确授权按引擎实际 result 验收停服状态；`RESULT_TIMEOUT` 显示 timeout，其他传输失败显示 unavailable，两者均须显示 Retry。Windows Godot 4.7.2 对无监听 loopback 的锁定预期为 timeout；503 fixture 确定性覆盖 unavailable。
-- 后果：F-002 当前只建立工程诊断连通，不授权对话、LLM、数据库、NPC 或 R-03；远程 CI 结果需在后续 Git 交付阶段另行取得。
+- 后果：F-002 只建立工程诊断连通，不授权对话、LLM、数据库、NPC 或 R-03；Windows UAT 与 GitHub Linux CI 共同覆盖平台差异，远程交付事实由 PR #2 记录。

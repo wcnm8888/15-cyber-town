@@ -36,7 +36,7 @@ Godot 不直连 LLM 或数据库；领域层不直接依赖 FastAPI、Godot、�
       --> Git ignore / 敏感信息复检
 ```
 
-本地与 CI 复用同一入口。安全预检在其他工具前执行，同时检查 worktree 与 stage-0 Git index；扫描结果只输出路径、行号和规则。集成 harness 只占用 `127.0.0.1:8000`：启动真实 FastAPI 验证 connected，并以测试专用 loopback fixture 验证 503、非法 JSON、延迟、手动 retry 和端口回收，不向生产 API 增加故障路由。CI 仅有 `contents: read`，不读取 secrets、不启动 service container、不调用业务外部系统；bootstrap 从公开发行源下载经 SHA-256 固定的 Godot 4.7.2 Linux 包。F-002 的远程 runner 尚未执行。
+本地与 CI 复用同一入口。安全预检在其他工具前执行，同时检查 worktree 与 stage-0 Git index；扫描结果只输出路径、行号和规则。集成 harness 只占用 `127.0.0.1:8000`：启动真实 FastAPI 验证 connected，并以测试专用 loopback fixture 验证 503、非法 JSON、延迟、手动 retry 和端口回收，不向生产 API 增加故障路由。CI 仅有 `contents: read`，不读取 secrets、不启动 service container、不调用业务外部系统；bootstrap 从公开发行源下载经 SHA-256 固定的 Godot 4.7.2 Linux 包。F-002 的远程 CI 与合并事实由 PR #2 记录。
 
 ## 状态与一致性
 

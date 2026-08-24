@@ -2,13 +2,13 @@
 
 ## 当前状态
 
-- 生命周期：`F-002_active / step_6_complete / ready_for_git_delivery`。
-- 最近完成：用户真实窗口 UAT 通过，最终本地交付审查通过；第二次独立 QA 结论仍为 NO FINDINGS。
-- 已验证：Godot 4.7.2 import/unit 和 9 个真实集成场景通过；统一入口完成 lock 38 packages、ruff、mypy 18 source files、schema、pytest 134 passed、ignore 和 sensitive 复检；Markdown 相对链接、CI workflow 静态检查与 `git diff --check` 通过。
-- 项目事实：当前分支为 `feat/f-002-godot-fastapi-connectivity`，起点/main/origin main 为 `de6d66e`；健康 API 与低保真 Godot 诊断项目已真实连通；LLM、数据库、NPC 和 R-03 仍不存在。
-- 交付事实：F-002 尚未提交、推送、创建 PR、运行远程 CI、合并或归档。
-- 当前阻塞：无技术阻塞；Git 提交、push、PR、远程 CI、合并和归档尚未授权或执行。
+- 生命周期：`no_active_task / F-002_delivery_via_PR_2`。
+- 最近完成：F-002 健康 API、Godot 诊断场景、独立 QA、真实窗口 UAT、本地交付门禁与任务归档；未发现剩余 P0/P1/P2/P3。
+- 已验证：Godot 4.7.2 import/unit、9 个真实 loopback 场景、pytest 134、ruff、mypy、schema、lock、ignore、sensitive、Markdown、workflow 静态契约与 diff 检查均通过；PR #2 的首个功能 HEAD 已通过 GitHub-hosted Linux `Quality`。
+- 项目事实：已有只读 `GET /api/v1/health` 和低保真 Godot 连接诊断场景；Dialogue、LLM、数据库、NPC 和 R-03 仍不存在。
+- 交付事实：F-002 的功能提交、远程分支、PR、CI 和归档由 GitHub PR #2 统一记录；归档提交的最终 CI 与合并事实以 GitHub 为准。
+- 当前阻塞：无活动任务；不得自动进入 R-03。
 
 ## 下一批准动作
 
-等待用户另行授权 F-002 Git 交付。不得自动提交、推送、创建 PR、归档或进入 R-03。
+等待用户从 roadmap 选择下一候选任务并批准新任务卡。F-002 的授权不得复用于 R-03。

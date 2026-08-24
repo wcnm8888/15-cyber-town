@@ -10,7 +10,7 @@
 - 当前状态：[`project-management/progress.md`](project-management/progress.md)
 - 验收证据：[`project-management/evidence.md`](project-management/evidence.md)
 
-`F-001` 已由 PR #1 交付归档。当前活动任务 `F-002` 的 Step 6 用户 UAT 与最终本地交付审查已通过，状态为 `ready_for_git_delivery`；尚未提交、推送、创建 PR、运行远程 CI 或归档，也未进入 R-03。未创建 `memory-bank/`，本 `docs/` 是唯一权威文档体系。
+`F-001` 已由 PR #1 交付归档；`F-002` 的任务卡与实现计划位于 [`archive/task-cards/`](archive/task-cards/)，实现、验收与归档由 PR #2 统一交付，最终 CI 与合并事实以 GitHub 为准。当前无活动任务，未进入 R-03。未创建 `memory-bank/`，本 `docs/` 是唯一权威文档体系。
 
 ## 权威文档与更新规则
 

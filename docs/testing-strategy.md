@@ -32,7 +32,7 @@ GitHub Actions 在 `main` push、pull request 和人工触发时先执行 `uv sy
 - GDScript 单测覆盖五态文案、严格响应解析、非 2xx、空/非法 JSON、缺失/额外/错误字段、timeout、传输失败、单在途请求和 retry。
 - `scripts/connectivity_integration.py` 使用真实 HTTPRequest：无监听服务、503、重复 JSON key、非字符串字段、redirect 拒绝、真实 FastAPI、503→retry、非法 JSON→retry、延迟→timeout→retry，共 9 个场景；redirect target 必须零请求，每个 owned process/listener 都必须退出并释放端口。
 - 自动化只验证状态机、场景资源和真实 loopback 通信。Step 6 用户 UAT 仍需在真实窗口观察布局、冻结文案、按钮可操作性及启动/停服后的恢复，不得由 headless 结果替代。
-- CI 在 runner bootstrap 下载官方 Godot 包；质量阶段只访问 runner loopback。F-002 远程 CI 尚未运行。
+- CI 在 runner bootstrap 下载官方 Godot 包；质量阶段只访问 runner loopback。F-002 的远程 CI 与合并结果由 PR #2 记录。
 
 ## 首切片验收草案
 
