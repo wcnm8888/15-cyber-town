@@ -1,0 +1,78 @@
+{
+  "$defs": {
+    "DialogueStatus": {
+      "description": "Stable outcome states visible to clients.",
+      "enum": [
+        "completed",
+        "degraded"
+      ],
+      "title": "DialogueStatus",
+      "type": "string"
+    }
+  },
+  "$id": "https://cyber-town.local/schemas/v1/dialogue-response-v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "A validated dialogue result without internal provider details.",
+  "properties": {
+    "conversation_id": {
+      "format": "uuid",
+      "maxLength": 36,
+      "minLength": 36,
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+      "title": "Conversation Id",
+      "type": "string"
+    },
+    "npc_id": {
+      "maxLength": 64,
+      "minLength": 1,
+      "pattern": "\\S",
+      "title": "Npc Id",
+      "type": "string"
+    },
+    "provider": {
+      "maxLength": 64,
+      "minLength": 1,
+      "pattern": "\\S",
+      "title": "Provider",
+      "type": "string"
+    },
+    "reply": {
+      "maxLength": 4000,
+      "minLength": 1,
+      "pattern": "\\S",
+      "title": "Reply",
+      "type": "string"
+    },
+    "request_id": {
+      "format": "uuid",
+      "maxLength": 36,
+      "minLength": 36,
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+      "title": "Request Id",
+      "type": "string"
+    },
+    "status": {
+      "$ref": "#/$defs/DialogueStatus"
+    },
+    "trace_id": {
+      "format": "uuid",
+      "maxLength": 36,
+      "minLength": 36,
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+      "title": "Trace Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "request_id",
+    "trace_id",
+    "npc_id",
+    "conversation_id",
+    "reply",
+    "status",
+    "provider"
+  ],
+  "title": "DialogueResponseV1",
+  "type": "object"
+}

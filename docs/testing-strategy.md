@@ -18,6 +18,14 @@
 
 UI 必须经过设计稿确认、冻结参考、同尺寸真实截图、用户视觉确认；自动化测试不能替代视觉验收。实现者不能是唯一验收者；高风险状态机、权限、审计和外部 provider 降级至少增加独立审查。
 
+### F-001 当前统一入口
+
+运行 `uv run --frozen python scripts/quality.py`。当前入口先执行 ignore/敏感信息预检，再执行 lock freshness、ruff、mypy、schema drift 和 pytest，最后复查仓库策略；全部使用本地锁定环境，不需要真实凭证或业务外部服务。
+
+负向测试覆盖：worktree/index 内容分叉、staged/missing `.gitignore`、symlink/异常 mode、大小写与多种配置语法凭证键、精确 placeholder、BOM/非 UTF-8/超大文本、二进制魔数伪装、结构化配置重复键/递归/过深输入 fail-closed、敏感预检顺序、子命令缺失与失败传播、配置环境隔离、未知/多余 schema drift，以及用 Draft 2020-12 validator 在不依赖可选 format assertion 的情况下验证合法与非法 request/response/error fixtures。socket monkeypatch 只证明本地策略 helper 不触网；统一入口的离线边界由命令白名单、无外部服务配置和独立 QA 共同验证，不把该单元测试夸大为操作系统级断网证明。
+
+GitHub Actions 在 `main` push、pull request 和人工触发时先执行 `uv sync --locked --all-groups`，再运行完全相同的质量入口。workflow 不使用 secrets、写权限、服务容器或发布步骤。本地 UAT、等价复现、最终独立审查和 PR #1 的 GitHub-hosted Linux runner 验证均已通过。
+
 ## 首切片验收草案
 
 1. 玩家可在固定 Godot 场景发出一条对话；请求中包含并回传 `trace_id`。

@@ -1,0 +1,48 @@
+[build-system]
+requires = ["hatchling==1.27.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "cyber-town"
+version = "0.1.0"
+description = "A testable engineering baseline for the Cyber Town AI NPC learning project."
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+  "pydantic>=2.10,<3",
+  "pydantic-settings>=2.7,<3",
+]
+
+[dependency-groups]
+dev = [
+  "jsonschema>=4.26,<5",
+  "mypy>=1.15,<2",
+  "pathspec>=1.0,<2",
+  "pytest>=8.3,<9",
+  "python-dotenv>=1.0,<2",
+  "pyyaml>=6,<7",
+  "ruff>=0.9,<1",
+  "types-jsonschema>=4.26,<5",
+  "types-pyyaml>=6,<7",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["backend/src/cyber_town"]
+
+[tool.pytest.ini_options]
+addopts = "-ra --strict-config --strict-markers"
+pythonpath = ["backend/src"]
+testpaths = ["backend/tests"]
+
+[tool.ruff]
+line-length = 100
+src = ["backend/src", "backend/tests", "scripts"]
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "UP", "B", "SIM", "RUF"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+files = ["backend/src", "backend/tests", "scripts"]

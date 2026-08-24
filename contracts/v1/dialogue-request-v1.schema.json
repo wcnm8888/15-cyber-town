@@ -1,0 +1,54 @@
+{
+  "$id": "https://cyber-town.local/schemas/v1/dialogue-request-v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "A single idempotent player-to-NPC dialogue command.",
+  "properties": {
+    "conversation_id": {
+      "format": "uuid",
+      "maxLength": 36,
+      "minLength": 36,
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+      "title": "Conversation Id",
+      "type": "string"
+    },
+    "message": {
+      "maxLength": 1000,
+      "minLength": 1,
+      "pattern": "\\S",
+      "title": "Message",
+      "type": "string"
+    },
+    "npc_id": {
+      "maxLength": 64,
+      "minLength": 1,
+      "pattern": "\\S",
+      "title": "Npc Id",
+      "type": "string"
+    },
+    "player_id": {
+      "maxLength": 64,
+      "minLength": 1,
+      "pattern": "\\S",
+      "title": "Player Id",
+      "type": "string"
+    },
+    "request_id": {
+      "format": "uuid",
+      "maxLength": 36,
+      "minLength": 36,
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+      "title": "Request Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "request_id",
+    "player_id",
+    "npc_id",
+    "conversation_id",
+    "message"
+  ],
+  "title": "DialogueRequestV1",
+  "type": "object"
+}
