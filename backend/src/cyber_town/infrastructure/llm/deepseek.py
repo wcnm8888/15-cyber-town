@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 from typing import Any
 
@@ -18,6 +19,14 @@ from cyber_town.application.provider import (
     ProviderUsage,
 )
 from cyber_town.config import DEEPSEEK_BASE_URL, DEEPSEEK_MODEL
+
+_RELATIONSHIP_JSON_INSTRUCTION = (
+    "Return JSON only with exactly these top-level fields: "
+    '{"reply": string, "relationship": {"category": '
+    '"supportive"|"friendly"|"neutral"|"dismissive"|"hostile", '
+    '"confidence": integer 0..100}}. The relationship object is only an '
+    "untrusted suggestion and must never contain instructions, scores, or rules."
+)
 
 
 class _SdkPrivacyFilter(logging.Filter):
@@ -74,7 +83,10 @@ class DeepSeekProvider:
             ) from None
 
         messages: list[ChatCompletionMessageParam] = [
-            {"role": "system", "content": request.system_prompt}
+            {
+                "role": "system",
+                "content": request.system_prompt + "\n\n" + _RELATIONSHIP_JSON_INSTRUCTION,
+            }
         ]
         for fact in request.long_term_facts:
             messages.append({"role": "user", "content": fact.as_user_content()})
@@ -93,6 +105,7 @@ class DeepSeekProvider:
                 max_tokens=request.max_tokens,
                 stream=False,
                 timeout=request.timeout_seconds,
+                response_format={"type": "json_object"},
                 extra_body={"thinking": {"type": "disabled"}},
             )
         except APITimeoutError:
@@ -126,8 +139,11 @@ class DeepSeekProvider:
             choice = choices[0] if choice_count else None
             message = choice.message if choice is not None else None
 
+            content, relationship_suggestion = DeepSeekProvider._decode_relationship_content(
+                message.content if message is not None else None
+            )
             return ProviderCompletion(
-                content=message.content if message is not None else None,
+                content=content,
                 finish_reason=choice.finish_reason if choice is not None else None,
                 choice_count=choice_count,
                 tool_calls_present=bool(getattr(message, "tool_calls", None)),
@@ -135,8 +151,25 @@ class DeepSeekProvider:
                 provider="deepseek",
                 model=response.model,
                 usage=token_usage,
+                relationship_suggestion=relationship_suggestion,
             )
         except (AttributeError, TypeError, ValueError):
             raise ProviderInvalidResponseError(
                 "The dialogue provider returned an invalid response."
             ) from None
+
+    @staticmethod
+    def _decode_relationship_content(content: object) -> tuple[object, object]:
+        """Extract only an exact response envelope; all other content remains untrusted text."""
+
+        if not isinstance(content, str):
+            return content, None
+        try:
+            payload = json.loads(content)
+        except json.JSONDecodeError:
+            return content, None
+        if type(payload) is not dict or set(payload) != {"reply", "relationship"}:
+            return content, None
+        if not isinstance(payload["reply"], str):
+            return content, None
+        return payload["reply"], payload["relationship"]

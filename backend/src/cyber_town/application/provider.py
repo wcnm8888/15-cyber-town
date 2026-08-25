@@ -120,6 +120,7 @@ class ProviderCompletion:
     provider: str
     model: str
     usage: ProviderUsage = field(default_factory=ProviderUsage)
+    relationship_suggestion: object = None
 
 
 class ProviderError(Exception):

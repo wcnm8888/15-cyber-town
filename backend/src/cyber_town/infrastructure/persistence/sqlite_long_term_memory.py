@@ -17,8 +17,10 @@ from cyber_town.domain.long_term_memory import (
     MemoryType,
 )
 
-_MIGRATION_FILENAME = "0001_long_term_memory.sql"
-_SCHEMA_VERSION = 1
+_MIGRATIONS = (
+    (1, "0001_long_term_memory.sql"),
+    (2, "0002_relationship_state.sql"),
+)
 _BUSY_TIMEOUT_MILLISECONDS = 2_000
 
 
@@ -60,11 +62,24 @@ class SqliteLongTermMemoryRepository:
         self._busy_timeout_milliseconds = _BUSY_TIMEOUT_MILLISECONDS
 
     def initialize(self) -> None:
-        """Atomically apply the approved first schema or validate the existing one."""
+        """Atomically validate an approved migration prefix and append its missing suffix."""
 
-        migration_path = Path(__file__).parent / "migrations" / _MIGRATION_FILENAME
-        migration = migration_path.read_bytes()
-        checksum = hashlib.sha256(migration).hexdigest()
+        try:
+            migrations = tuple(
+                (
+                    version,
+                    name,
+                    migration_path.read_text(encoding="utf-8"),
+                    hashlib.sha256(migration_path.read_bytes()).hexdigest(),
+                )
+                for version, name in _MIGRATIONS
+                for migration_path in (Path(__file__).parent / "migrations" / name,)
+            )
+        except OSError as error:
+            raise LongTermMemoryStorageError(
+                "Long-term memory schema migration is unavailable"
+            ) from error
+        expected = [(version, name, checksum) for version, name, _, checksum in migrations]
 
         try:
             with closing(self._connect()) as connection:
@@ -80,18 +95,18 @@ class SqliteLongTermMemoryRepository:
                         "applied_at INTEGER NOT NULL CHECK (applied_at > 0))"
                     )
                     existing = connection.execute(
-                        "SELECT version, name, checksum FROM schema_migrations"
+                        "SELECT version, name, checksum FROM schema_migrations ORDER BY version"
                     ).fetchall()
-                    if not existing:
-                        self._apply_migration(connection, migration.decode("utf-8"))
+                    if existing != expected[: len(existing)]:
+                        raise LongTermMemoryStorageError(
+                            "Long-term memory schema version is unavailable"
+                        )
+                    for version, name, migration, checksum in migrations[len(existing) :]:
+                        self._apply_migration(connection, migration)
                         connection.execute(
                             "INSERT INTO schema_migrations "
                             "(version, name, checksum, applied_at) VALUES (?, ?, ?, ?)",
-                            (_SCHEMA_VERSION, _MIGRATION_FILENAME, checksum, int(time.time())),
-                        )
-                    elif existing != [(_SCHEMA_VERSION, _MIGRATION_FILENAME, checksum)]:
-                        raise LongTermMemoryStorageError(
-                            "Long-term memory schema version is unavailable"
+                            (version, name, checksum, int(time.time())),
                         )
                     connection.commit()
                 except (sqlite3.Error, LongTermMemoryStorageError):

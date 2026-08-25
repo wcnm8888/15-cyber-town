@@ -5,12 +5,14 @@ from __future__ import annotations
 from cyber_town.application.dialogue import DialogueExecutionConfig, DialogueService
 from cyber_town.application.long_term_memory import LongTermMemoryRetriever, LongTermMemoryService
 from cyber_town.application.provider import ProviderProtocol
+from cyber_town.application.relationship import RelationshipService
 from cyber_town.config import PROJECT_ROOT, LlmProvider, Settings
 from cyber_town.domain.persona import load_bundled_persona
 from cyber_town.infrastructure.llm.deepseek import DeepSeekProvider
 from cyber_town.infrastructure.persistence.sqlite_long_term_memory import (
     SqliteLongTermMemoryRepository,
 )
+from cyber_town.infrastructure.persistence.sqlite_relationship import SqliteRelationshipRepository
 
 
 def build_dialogue_service(
@@ -18,6 +20,7 @@ def build_dialogue_service(
     *,
     provider: ProviderProtocol | None = None,
     long_term_repository: SqliteLongTermMemoryRepository | None = None,
+    relationship_repository: SqliteRelationshipRepository | None = None,
 ) -> DialogueService | None:
     """Build the dialogue use case only when the approved provider is enabled."""
 
@@ -42,6 +45,13 @@ def build_dialogue_service(
         )
         long_term_repository.initialize()
 
+    if relationship_repository is None:
+        relationship_repository = SqliteRelationshipRepository(
+            database_path=long_term_repository.database_path,
+            allowed_root=long_term_repository.database_path.parent,
+        )
+        relationship_repository.initialize()
+
     persona = load_bundled_persona("nia_v1.json")
     return DialogueService(
         personas={persona.npc_id: persona},
@@ -57,4 +67,5 @@ def build_dialogue_service(
         ),
         long_term_memory=LongTermMemoryService(repository=long_term_repository),
         long_term_retriever=LongTermMemoryRetriever(repository=long_term_repository),
+        relationship_service=RelationshipService(repository=relationship_repository),
     )

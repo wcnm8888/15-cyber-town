@@ -111,4 +111,12 @@
 - 评估：固定 72 项 fake-only golden set 当前 precision/recall 均为 1.00，跨 scope、遗忘、过期、旧值复活和空结果虚构均为 0；现有 Godot 场景通过 loopback FastAPI、隔离 SQLite 和 FakeProvider 验证完整记住/召回/遗忘流程，不改变公开 Dialogue v1、Schema、Godot 场景、依赖或 CI。
 - 真实调用治理：独立 SQLite 台账固定 `data/acceptance-ledgers/f-005.sqlite3`，只保存授权标识、Step、模型、状态、token、整数 micro-USD 与时间戳；Step 5 ≤8 次/USD 0.035，Step 7 ≤4 次/USD 0.015，总计 ≤12 次/USD 0.05。每次先原子预留，再由计量 provider 于 completion 返回后立即落 usage；reserved/unknown、预算异常或台账损坏 fail-closed。
 - 真实专项结果：Step 5 实际调用 7/8 次，1244 输入 token、106 输出 token、USD 0.000690；Step 7 用户真实 Godot 窗口 UAT 实际调用 3/4 次，500 输入 token、141 输出 token、USD 0.000408。F-005 累计 10/12 次、1744 输入/247 输出 token、USD 0.001098，所有 reservation 均已结算；跨 conversation/重启恢复、隔离、更新、四类事实、persona、遗忘与空结果均通过。
-- 后果：F-005 独立 QA、真实评估与用户 UAT 已通过；任务卡、计划、最终 CI 和交付归档以 GitHub PR #5 为准。当前无活动任务，不自动进入 R-06，后续真实调用仍须另获授权。
+- 后果：F-005 独立 QA、真实评估与用户 UAT 已通过；任务卡和计划已归档，PR #5 已合并至 `c9d11b0a3c441a10463ad4522bb226f055f07f35`。后续真实调用仍须另获授权。
+
+## ADR-016：F-006 关系状态采用追加迁移与确定性裁决
+
+- 状态：已锁定（F-006 / Step 0，2026-08-25）。
+- 决策：关系 scope 固定为 `(player_id, npc_id)`；状态初始 20、范围 0–100、单次最大 ±2、每日最多一次有效非零变化。LLM 只在既有对话调用中提出严格分类与置信度建议，确定性规则拥有分值、阶段、冷却、饱和与持久化写入权。
+- SQLite：保持唯一真相源，迁移机制从单一 `0001` checksum 校验升级为有序追加校验；新增 `0002_relationship_state.sql`，禁止修改 F-005 已有 `0001_long_term_memory.sql` 或引入第二数据库。
+- API/UI：新增严格只读关系 GET，不修改冻结 Dialogue v1；Godot 仅在用户批准最小视觉契约后做低保真只读展示。
+- 后果：F-006 Step 0—6 已在 fake-only 边界内完成；同次 JSON completion 的建议只作为不可信 metadata，确定性引擎与 SQLite 事务保留唯一状态权。4040 次规则/冷却裁决、24 个对抗建议、2 个 UTC 日界和 Step 6 的黑盒操纵/并发 QA 均未确认产品缺陷；公开 Dialogue v1 不变，新增关系 GET 和 Godot 低保真读取。后续用户 UAT、任何真实调用和 Git 交付仍须分别授权；不读取 `.env`、不调用真实 provider、不复用 F-005 的费用、台账或隔离数据库。

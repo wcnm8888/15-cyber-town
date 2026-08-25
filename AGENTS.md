@@ -3,7 +3,7 @@
 ## 项目定位与阶段
 
 - 等级：L（多模块、Agent、状态持久化、安全与可观测性）。
-- 当前阶段：`no_active_task / F-005_delivery_via_PR_5`。F-001—F-004 已分别通过 PR #1—#4 交付并归档；F-005 起始 `main` 基线为 `3e03d64d129871495f3fe73295ee9b11478f2e71`，功能提交为 `338852e4dd03f8c679f8a2db920e2ba7bd6f968e`。F-005 Step 5 真实评估 7 次/USD 0.000690；独立 QA 最终 NO FINDINGS；Step 7 用户真实窗口 UAT 3 次/USD 0.000408；任务累计 10 次/USD 0.001098，pending=0。最终本地 fake-only 门禁 1095 passed，正式数据库未创建、8000 端口已释放；首轮 GitHub Linux `quality` 已通过，任务归档、最终 CI 与合并事实以 PR #5 为准。当前无活动任务，不得自动进入 R-06。
+- 当前阶段：`git_delivery_authorized / F-006_deterministic_affection`。F-001—F-005 已分别通过 PR #1—#5 交付并归档；F-005 已合并到当前 `main` / `origin/main` 的 `c9d11b0a3c441a10463ad4522bb226f055f07f35`。F-006 的任务合同、追加 SQLite `0002`、确定性规则、关系 GET、低保真 Godot 展示、fake-only 对抗/性质评估、黑盒 QA、视口修复和用户 UAT 已完成；最终 fake-only 本地门禁亦通过。用户已授权 Git 交付；仍不得进入 R-07、读取 `.env`、调用真实模型或复用 F-005 资源。
 - 本项目是 Agent 工程学习项目，同时交付可运行、可交互、可验证的 AI NPC 小镇。
 
 ## 关键边界

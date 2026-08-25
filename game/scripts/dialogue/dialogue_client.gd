@@ -12,6 +12,7 @@ const DialogueState = preload("res://scripts/dialogue/dialogue_state.gd")
 var state: StringName = DialogueState.IDLE
 var latest_reply := ""
 var latest_trace_id := ""
+var latest_status := ""
 
 var _state_model := DialogueState.new()
 var _conversation_id := ""
@@ -83,6 +84,13 @@ func active_generation() -> int:
 	return _generation
 
 
+func latest_request_id() -> String:
+	if _frozen_payload_json.is_empty():
+		return ""
+	var payload: Dictionary = JSON.parse_string(_frozen_payload_json)
+	return String(payload.get("request_id", ""))
+
+
 func handle_response(
 	generation: int,
 	result: int,
@@ -106,6 +114,7 @@ func handle_response(
 	)
 	latest_reply = String(outcome["reply"])
 	latest_trace_id = String(outcome["trace_id"])
+	latest_status = String(outcome["status"])
 	_retry_allowed = bool(outcome["retryable"])
 	_set_state(outcome["state"])
 
@@ -116,6 +125,7 @@ func _dispatch(is_retry: bool) -> bool:
 	_retry_allowed = false
 	latest_reply = ""
 	latest_trace_id = ""
+	latest_status = ""
 	_set_state(DialogueState.RETRYING if is_retry else DialogueState.LOADING)
 
 	var headers := PackedStringArray(["Content-Type: application/json"])

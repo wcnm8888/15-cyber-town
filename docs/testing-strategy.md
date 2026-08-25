@@ -20,7 +20,7 @@ UI 必须经过设计稿确认、冻结参考、同尺寸真实截图、用户�
 
 ### 当前统一入口
 
-运行 `uv run --frozen python scripts/quality.py`。入口先执行 ignore/敏感信息预检，再执行 lock freshness、ruff、mypy、schema drift、Godot editor import、GDScript 单测、9 个健康 loopback、10 个对话 fake loopback 和 pytest，最后复查仓库策略。每个子进程禁用 dotenv、移除继承的 provider key 并固定 provider 为 disabled；不需要真实凭证、真实 LLM、外部数据库或业务外部服务，F-005 仅使用 pytest 隔离的标准库 SQLite。
+运行 `uv run --frozen python scripts/quality.py`。入口先执行 ignore/敏感信息预检，再执行 lock freshness、ruff、mypy、schema drift、Godot editor import、GDScript 单测、9 个健康 loopback、10 个对话/关系 fake loopback 和 pytest，最后复查仓库策略。每个子进程禁用 dotenv、移除继承的 provider key 并固定 provider 为 disabled；不需要真实凭证、真实 LLM、外部数据库或业务外部服务，持久化测试只使用 pytest 或短生命周期 loopback 隔离 SQLite。
 
 负向测试覆盖：worktree/index 内容分叉、staged/missing `.gitignore`、symlink/异常 mode、大小写与多种配置语法凭证键、精确 placeholder、BOM/非 UTF-8/超大文本、二进制魔数伪装、结构化配置重复键/递归/过深输入 fail-closed、敏感预检顺序、子命令缺失与失败传播、配置环境隔离、未知/多余 schema drift，以及用 Draft 2020-12 validator 在不依赖可选 format assertion 的情况下验证合法与非法 request/response/error fixtures。socket monkeypatch 只证明本地策略 helper 不触网；统一入口的离线边界由命令白名单、无外部服务配置和独立 QA 共同验证，不把该单元测试夸大为操作系统级断网证明。
 
@@ -60,6 +60,16 @@ GitHub Actions 在 `main` push、pull request 和人工触发时先执行 `uv sy
 - Step 6 失败优先负例额外覆盖默认 FastAPI 装配、跨路径/跨重启 request 冲突、正数 usage、仅本 scope 过期、合法 golden 组成、实际测量 baseline、低敏感中英文 topic 许可词汇及 SQLite 故障 503；更新/遗忘后的 NFKC/casefold 旧值、跨 conversation 历史、在途 provider 和已完成幂等缓存均不得复活旧事实。
 - 默认启动链路 FakeProvider 测试必须同时 monkeypatch composition 项目根与 `data/` 到 pytest `tmp_path`，只修改 cwd 不足以隔离正式路径；durable Remember/Forget replay 不得清除有效新值历史或中断合法在途请求。
 - 当前全量统一入口 `1095 passed`，mypy 覆盖 57 个文件；后端独立复审 `274 passed / 3 deselected`，Godot/API 独立复审 `360 passed`，两人均 NO FINDINGS；自动化、统一入口与 CI 仍永久 fake-only。Step 5 真实评估为 7 次、1244 输入/106 输出 token、USD 0.000690。Step 7 用户真实窗口 UAT 已使用隔离 SQLite 与计量台账通过 unknown、记住、跨窗口/重启召回、更新、遗忘及最终 unknown，实际 3 次、500 输入/141 输出 token、USD 0.000408；任务累计 10 次/USD 0.001098，pending=0。误创建的正式路径 SQLite 文件已按用户单独明确授权定向删除，默认启动测试和本次 UAT 均未重新创建。
+
+### F-006 确定性关系 Step 4—6
+
+- 领域/SQLite 测试覆盖五类建议的严格解析、置信度和 UTC 冷却、双元 scope、事务、幂等、锁、旧库迁移、metadata-only 事件与顺序回放。
+- Dialogue/API 集成覆盖同次成功 completion 的内部建议、Dialogue v1 字段不变、只读 GET 初始快照/同 request 事件、禁用或畸形关系请求 fail-closed；degraded、provider 失败和记忆命令不写关系。
+- `scripts/dialogue_integration.py` 的 10 个 FakeProvider/Godot loopback 场景均用短生命周期隔离 SQLite；success 额外断言 Godot 呈现分数、阶段、本次变化和稳定 reason code。无真实模型调用或 F-005 资源复用。
+- Step 5 的纯内存评估遍历 2020 个基础及 2020 个 UTC 冷却的 score/category/confidence 组合，检查范围、阶段、变化上限、饱和、低置信度、neutral 和冷却；24 个类型混淆、越权字段及注入样式 suggestion 与 2 个 UTC 日界均必须 fail-closed，违规为 0。
+- FakeProvider→DialogueService→关系 GET 额外回归 `score`、`instruction` 和 bool 置信度操纵 suggestion：Dialogue v1 仍为 `completed`，关系事件只能是 `candidate_invalid / delta 0` 且初始分数不变。SQLite 4 writer 同 scope 并发仍只允许一个有效 +2 变化。
+- Step 6 独立黑盒 HTTP QA 在三个短生命周期 FakeProvider 服务中验证初始/成功/重放/scope/422、越权 suggestion 和四请求并发；未确认产品缺陷。应用内浏览器拒绝本机 loopback，因此该工具限制单列记录，不将其伪装为用户 Godot 视觉验收。
+- Step 7 的首张用户截图曾发现固定 640×400 视口裁切 `Reason`；最小修复后，重新用户窗口 UAT 已确认 `Reason: rule_friendly` 完整可见。该视觉验收由场景/集成几何断言补强，但仍以用户截图为最终人工证据。
 
 ## F-003 已归档首切片验收状态
 

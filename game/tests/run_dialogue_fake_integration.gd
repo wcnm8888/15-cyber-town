@@ -26,6 +26,8 @@ var _reply_label: Label
 var _message_input: TextEdit
 var _send_button: Button
 var _retry_button: Button
+var _relationship_label: Label
+var _relationship_client: Node
 var _observed_states: Array[StringName] = []
 var _original_payload := ""
 var _retried := false
@@ -65,6 +67,8 @@ func _run() -> void:
 	_message_input = _scene.get_node("CenterContainer/VBoxContainer/MessageInput")
 	_send_button = _scene.get_node("CenterContainer/VBoxContainer/ButtonRow/SendButton")
 	_retry_button = _scene.get_node("CenterContainer/VBoxContainer/ButtonRow/RetryButton")
+	_relationship_label = _scene.get_node("CenterContainer/VBoxContainer/RelationshipLabel")
+	_relationship_client = _scene.get_node("RelationshipClient")
 	_client.state_changed.connect(_on_state_changed)
 
 	_message_input.text = SYNTHETIC_MESSAGE
@@ -127,6 +131,39 @@ func _verify_success() -> void:
 	if _client.latest_trace_id.is_empty():
 		_fail("offline dialogue did not expose its safe trace identifier")
 		return
+	if _scenario == "success":
+		var relationship_deadline := Time.get_ticks_msec() + 2000
+		while (
+			not _relationship_label.text.contains("Reason: rule_friendly")
+			and Time.get_ticks_msec() < relationship_deadline
+		):
+			await process_frame
+		if (
+			not _relationship_client.has_verified_snapshot
+			or not _relationship_label.text.contains("Affection: 21/100")
+			or not _relationship_label.text.contains("Stage: Acquaintance")
+			or not _relationship_label.text.contains("Change: +1")
+			or not _relationship_label.text.contains("Reason: rule_friendly")
+		):
+			_fail(
+				"relationship snapshot was not rendered after a completed fake dialogue "
+				+ "state=%s label=%s failure=%s" % [
+					_relationship_client.state,
+					_relationship_label.text,
+					_relationship_client.last_failure,
+				]
+			)
+			return
+		var relationship_bottom: float = _relationship_label.get_global_rect().end.y
+		var viewport_bottom: float = _scene.get_viewport().get_visible_rect().end.y
+		if relationship_bottom > viewport_bottom:
+			_fail(
+				"relationship reason was clipped (bottom=%s viewport=%s)" % [
+					relationship_bottom,
+					viewport_bottom,
+				]
+			)
+			return
 
 	_completed_turns += 1
 	if MULTI_TURN_SCENARIOS.has(_scenario):

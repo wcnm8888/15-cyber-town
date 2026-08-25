@@ -2,6 +2,7 @@ extends RefCounted
 
 const STATE_SCRIPT_PATH := "res://scripts/dialogue/dialogue_state.gd"
 const CLIENT_SCRIPT_PATH := "res://scripts/dialogue/dialogue_client.gd"
+const RELATIONSHIP_CLIENT_SCRIPT_PATH := "res://scripts/dialogue/relationship_client.gd"
 const UI_SCRIPT_PATH := "res://scripts/dialogue/dialogue_ui.gd"
 const SCENE_PATH := "res://scenes/dialogue.tscn"
 
@@ -24,13 +25,20 @@ var _root: Window
 
 func run(root: Window) -> Array[String]:
 	_root = root
-	for path in [STATE_SCRIPT_PATH, CLIENT_SCRIPT_PATH, UI_SCRIPT_PATH, SCENE_PATH]:
+	for path in [
+		STATE_SCRIPT_PATH,
+		CLIENT_SCRIPT_PATH,
+		RELATIONSHIP_CLIENT_SCRIPT_PATH,
+		UI_SCRIPT_PATH,
+		SCENE_PATH,
+	]:
 		_assert_true(ResourceLoader.exists(path), "dialogue resource exists: %s" % path)
 	if not _failures.is_empty():
 		return _failures
 
 	var state_script: Script = load(STATE_SCRIPT_PATH)
 	var client_script: Script = load(CLIENT_SCRIPT_PATH)
+	var relationship_client_script: Script = load(RELATIONSHIP_CLIENT_SCRIPT_PATH)
 	_test_frozen_state_messages(state_script)
 	_test_strict_success_response(state_script)
 	_test_invalid_success_responses(state_script)
@@ -41,6 +49,7 @@ func run(root: Window) -> Array[String]:
 	_test_single_inflight_and_manual_retry(client_script)
 	_test_late_callback_cannot_override_new_generation(client_script)
 	_test_editing_message_invalidates_retry_context(client_script)
+	_test_relationship_snapshot_contract(relationship_client_script)
 	_test_scene_contract()
 	if _failures.is_empty():
 		print("Godot dialogue tests passed")
@@ -383,6 +392,34 @@ func _test_editing_message_invalidates_retry_context(client_script: Script) -> v
 	client.free()
 
 
+func _test_relationship_snapshot_contract(relationship_client_script: Script) -> void:
+	var client: Node = relationship_client_script.new()
+	var valid := {
+		"npc_id": "neon_guide",
+		"score": 21,
+		"stage": "acquaintance",
+		"rule_version": "f-006-v1",
+		"event": {
+			"category": "friendly",
+			"applied_delta": 1,
+			"reason_code": "rule_friendly",
+			"score": 21,
+			"stage": "acquaintance",
+			"occurred_at": 1,
+		},
+	}
+	_assert_true(client._is_valid_snapshot(valid), "relationship accepts an exact approved snapshot")
+
+	for invalid in [
+		{"npc_id": "other_npc", "score": 20, "stage": "acquaintance", "rule_version": "f-006-v1", "event": null},
+		{"npc_id": "neon_guide", "score": 20, "stage": "acquaintance", "rule_version": "f-006-v1", "event": null, "extra": true},
+		{"npc_id": "neon_guide", "score": 20, "stage": "acquaintance", "rule_version": "f-006-v1", "event": {"category": "friendly", "applied_delta": 1, "reason_code": "unknown", "score": 20, "stage": "acquaintance", "occurred_at": 1}},
+		{"npc_id": "neon_guide", "score": 20, "stage": "acquaintance", "rule_version": "f-006-v1", "event": {"category": "friendly", "applied_delta": 1, "reason_code": "rule_friendly", "score": 21, "stage": "acquaintance", "occurred_at": 1}},
+	]:
+		_assert_false(client._is_valid_snapshot(invalid), "relationship rejects an untrusted snapshot")
+	client.free()
+
+
 func _test_scene_contract() -> void:
 	_assert_equal(
 		ProjectSettings.get_setting("application/run/main_scene"),
@@ -404,7 +441,9 @@ func _test_scene_contract() -> void:
 		"CenterContainer/VBoxContainer/ButtonRow/SendButton",
 		"CenterContainer/VBoxContainer/ButtonRow/RetryButton",
 		"CenterContainer/VBoxContainer/TraceLabel",
+		"CenterContainer/VBoxContainer/RelationshipLabel",
 		"DialogueClient/HTTPRequest",
+		"RelationshipClient/HTTPRequest",
 	]:
 		_assert_true(scene.has_node(path), "dialogue scene node exists: %s" % path)
 	if not _failures.is_empty():
@@ -412,17 +451,28 @@ func _test_scene_contract() -> void:
 		return
 	var title: Label = scene.get_node("CenterContainer/VBoxContainer/TitleLabel")
 	var status: Label = scene.get_node("CenterContainer/VBoxContainer/StatusLabel")
+	var content: VBoxContainer = scene.get_node("CenterContainer/VBoxContainer")
 	var input: TextEdit = scene.get_node("CenterContainer/VBoxContainer/MessageInput")
 	var send: Button = scene.get_node("CenterContainer/VBoxContainer/ButtonRow/SendButton")
 	var retry: Button = scene.get_node("CenterContainer/VBoxContainer/ButtonRow/RetryButton")
+	var relationship_label: Label = scene.get_node("CenterContainer/VBoxContainer/RelationshipLabel")
 	var client: Node = scene.get_node("DialogueClient")
+	var relationship_client: Node = scene.get_node("RelationshipClient")
 	_assert_equal(title.text, "Nia", "fixed NPC display name")
 	_assert_equal(status.text, "Send a message to Nia", "frozen idle message")
+	_assert_equal(content.get_theme_constant("separation"), 4, "relationship content fits the fixed viewport")
 	_assert_equal(input.placeholder_text, "Type your message…", "frozen input placeholder")
+	_assert_equal(input.custom_minimum_size.y, 64.0, "relationship reason remains visible below input")
 	_assert_equal(send.text, "Send", "send button text")
 	_assert_equal(retry.text, "Retry", "retry button text")
+	_assert_equal(relationship_label.text, "Relationship: loading…", "relationship loading contract")
 	_assert_equal(client.dialogue_url, "http://127.0.0.1:8000/api/v1/dialogue", "local URL")
 	_assert_equal(client.timeout_seconds, 15.0, "Godot dialogue timeout is 15 seconds")
+	_assert_equal(
+		relationship_client.relationship_url,
+		"http://127.0.0.1:8000/api/v1/relationships",
+		"read-only relationship URL",
+	)
 	_test_rendered_scene_interaction(scene, client)
 	scene.free()
 

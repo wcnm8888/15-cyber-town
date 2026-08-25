@@ -12,18 +12,18 @@ Godot（场景 / 输入 / 动画 / UI）
 
 Godot 不直连 LLM 或数据库；领域层不直接依赖 FastAPI、Godot、具体 LLM SDK 或 Qdrant。外部模型返回与工具参数一律作为不可信输入处理。
 
-## F-005 当前模块
+## F-006 当前模块
 
 | 模块 | 职责 | 不负责 |
 | --- | --- | --- |
-| `game/` | 最小场景、邻近交互、对话 UI、请求状态 | 角色推理、持久化、好感度规则 |
+| `game/` | 最小场景、邻近交互、对话 UI、只读关系快照 | 角色推理、持久化、好感度规则 |
 | `backend/api/` | HTTP schema、错误码、关联 trace_id | 业务策略与 SQL 细节 |
-| `backend/application/` | 显式记住/忘记、双元长期检索、三元 scope 进程内短期记忆、统一 UTF-8 预算、并发、幂等、golden-set 评估与调用计量 | SQL 细节、HTTP、Godot 或具体 SDK |
-| `backend/domain/` | 固定 Nia persona、结构化长期事实/scope/status、provider-neutral DTO/错误和严格 loader | 网络、ORM、LLM SDK 或关系状态 |
+| `backend/application/` | 显式记住/忘记、双元长期检索、三元 scope 进程内短期记忆、确定性关系记录/读取、统一 UTF-8 预算、并发、幂等、golden-set 评估与调用计量 | SQL 细节、HTTP、Godot 或具体 SDK |
+| `backend/domain/` | 固定 Nia persona、结构化长期事实/scope/status、受限关系分类/状态机、provider-neutral DTO/错误和严格 loader | 网络、ORM、LLM SDK |
 | `backend/infrastructure/llm/` | fake provider 与隔离 DeepSeek adapter、SDK 错误分类和 usage 转换 | 业务决策、持久化或原始 provider 对象外泄 |
 | `backend/infrastructure/persistence/` | 标准库 SQLite schema/repository、参数化事务、scope 隔离及跨进程验收调用台账 | 模型判断、完整聊天备份、向量检索或公开 API |
 
-当前 API 同时提供 `GET /api/v1/health` 与严格的 `POST /api/v1/dialogue`，公开 Dialogue v1 和 JSON Schema 不因 F-005 改变，也不新增 memory API。Godot 复用既有连接诊断与低保真对话场景，只访问 FastAPI，不持有 API key 或直连 provider/数据库。启用 provider 时默认 composition 按受限项目 `data/` 路径装配标准库 SQLite repository；disabled provider 不创建数据库，自动化必须把 composition 项目根与数据库一起隔离到 pytest 临时目录。专项授权的真实 DeepSeek 评估使用 Git 忽略的独立验收数据库及调用台账。Step 6 曾因旧 fake 测试只隔离 cwd 而误创建正式路径 `data/cyber-town.sqlite3`；隔离根因已修复，该文件已按用户单独明确授权定向删除，未读取内容，验收库与调用台账完整保留。关系、多 NPC、embedding、Qdrant 和工具调用仍不存在。
+当前 API 提供 `GET /api/v1/health`、冻结的 `POST /api/v1/dialogue`，以及新增只读 `GET /api/v1/relationships/{player_id}/{npc_id}?request_id=<optional UUID>`。公开 Dialogue v1 和其 JSON Schema 不变。只有已校验且 `completed` 的同次 provider completion 才传递其受限 `category + confidence` 内部建议；确定性引擎和单一 SQLite 事务拥有分值、冷却、事件与回放权，degraded/失败/取消不写关系。Godot 只读取快照，不持有 API key 或直连 provider/数据库。启用 provider 时默认 composition 按受限项目 `data/` 路径装配唯一标准库 SQLite；自动化始终使用 pytest 或短生命周期 loopback 临时数据库。多 NPC、embedding、Qdrant 和工具调用仍不存在。
 
 ## 工程门禁边界
 
