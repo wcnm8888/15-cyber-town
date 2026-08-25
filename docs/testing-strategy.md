@@ -20,7 +20,7 @@ UI 必须经过设计稿确认、冻结参考、同尺寸真实截图、用户�
 
 ### 当前统一入口
 
-运行 `uv run --frozen python scripts/quality.py`。入口先执行 ignore/敏感信息预检，再执行 lock freshness、ruff、mypy、schema drift、Godot editor import、GDScript 单测、9 个健康 loopback、10 个对话 fake loopback 和 pytest，最后复查仓库策略。每个子进程禁用 dotenv、移除继承的 provider key 并固定 provider 为 disabled；不需要真实凭证、LLM、数据库或业务外部服务。
+运行 `uv run --frozen python scripts/quality.py`。入口先执行 ignore/敏感信息预检，再执行 lock freshness、ruff、mypy、schema drift、Godot editor import、GDScript 单测、9 个健康 loopback、10 个对话 fake loopback 和 pytest，最后复查仓库策略。每个子进程禁用 dotenv、移除继承的 provider key 并固定 provider 为 disabled；不需要真实凭证、真实 LLM、外部数据库或业务外部服务，F-005 仅使用 pytest 隔离的标准库 SQLite。
 
 负向测试覆盖：worktree/index 内容分叉、staged/missing `.gitignore`、symlink/异常 mode、大小写与多种配置语法凭证键、精确 placeholder、BOM/非 UTF-8/超大文本、二进制魔数伪装、结构化配置重复键/递归/过深输入 fail-closed、敏感预检顺序、子命令缺失与失败传播、配置环境隔离、未知/多余 schema drift，以及用 Draft 2020-12 validator 在不依赖可选 format assertion 的情况下验证合法与非法 request/response/error fixtures。socket monkeypatch 只证明本地策略 helper 不触网；统一入口的离线边界由命令白名单、无外部服务配置和独立 QA 共同验证，不把该单元测试夸大为操作系统级断网证明。
 
@@ -50,6 +50,16 @@ GitHub Actions 在 `main` push、pull request 和人工触发时先执行 `uv sy
 - 现有 Godot 场景和客户端不修改；10 个真实本地 loopback 包含原有 8 场景，以及连续三轮同 scope 和第二轮 503 → 手动 Retry → 第三轮。验证稳定 conversation_id、新 Send 独立 request_id、Retry 冻结 payload、完整历史及端口释放。
 - 真实 provider 多轮评估仅在单独授权的 Step 5 执行；独立 QA 在 Step 6；真实窗口用户 UAT 及准确调用/token/费用记录仅在另行授权的 Step 7 执行，均不得用 fake 成功替代。
 - Step 7 首轮真实窗口 UAT 发现空历史模型虚构既往代号；新增中英文、跨 scope 与 HTTP 负例锁定：没有可用历史且明确追问先前交流时必须返回确定性 `degraded / local-fallback`，不得调用 provider、产生费用或写入记忆。用户随后亲自在真实 Godot 窗口复验该确定性路径并确认 `FAKE_PROVIDER_CALLS=0`；真实模型同 scope 回忆沿用此前已通过的独立用户 UAT。
+
+### F-005 长期事实、golden set 与预算台账分工
+
+- SQLite/领域/application 自动测试覆盖双元 scope、四类低敏感白名单、版本化 schema、参数化查询、30 天 TTL、64/4096 活跃容量、更新 version、正文清空 tombstone、事务 rollback、2 秒锁等待、重启恢复与 request 指纹幂等；所有数据库仅创建在 pytest `tmp_path`。
+- 检索/provider 自动测试覆盖精确 key、固定中英文别名、确定性排序、最多 4 条召回、唯一 persona system、不可信 user 事实、2048 长期预算、8192 总预算、256 回复预留以及整条事实/完整回合裁剪。
+- 已有真实 Godot 场景通过 loopback FastAPI、隔离 SQLite 与 FakeProvider 验证“记住 → 召回 → 忘记 → 明确不知道”；同 conversation 遗忘后，即使短期历史中存在旧值，也不得重新调用 provider 或复活事实。
+- 版本化 72 项 golden set 验证 precision `1.00`、recall `1.00`，scope 泄漏、遗忘/过期召回、旧值复活与空结果虚构均为 `0`。另有跨进程台账和计量 provider 负例覆盖预留、费用/次数上限、unknown fail-closed、子进程与并发竞争、usage 先落账和 metadata-only schema。
+- Step 6 失败优先负例额外覆盖默认 FastAPI 装配、跨路径/跨重启 request 冲突、正数 usage、仅本 scope 过期、合法 golden 组成、实际测量 baseline、低敏感中英文 topic 许可词汇及 SQLite 故障 503；更新/遗忘后的 NFKC/casefold 旧值、跨 conversation 历史、在途 provider 和已完成幂等缓存均不得复活旧事实。
+- 默认启动链路 FakeProvider 测试必须同时 monkeypatch composition 项目根与 `data/` 到 pytest `tmp_path`，只修改 cwd 不足以隔离正式路径；durable Remember/Forget replay 不得清除有效新值历史或中断合法在途请求。
+- 当前全量统一入口 `1095 passed`，mypy 覆盖 57 个文件；后端独立复审 `274 passed / 3 deselected`，Godot/API 独立复审 `360 passed`，两人均 NO FINDINGS；自动化、统一入口与 CI 仍永久 fake-only。Step 5 真实评估为 7 次、1244 输入/106 输出 token、USD 0.000690。Step 7 用户真实窗口 UAT 已使用隔离 SQLite 与计量台账通过 unknown、记住、跨窗口/重启召回、更新、遗忘及最终 unknown，实际 3 次、500 输入/141 输出 token、USD 0.000408；任务累计 10 次/USD 0.001098，pending=0。误创建的正式路径 SQLite 文件已按用户单独明确授权定向删除，默认启动测试和本次 UAT 均未重新创建。
 
 ## F-003 已归档首切片验收状态
 

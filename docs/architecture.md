@@ -5,24 +5,25 @@
 ```text
 Godot（场景 / 输入 / 动画 / UI）
   -- REST JSON --> FastAPI API（鉴权边界 / schema / 错误映射 / trace_id）
-  --> 对话编排应用层（有界多轮工作记忆、上下文预算、幂等、并发、输出校验、降级、审计）
+  --> 对话编排应用层（显式长期事实、双元检索、有界多轮工作记忆、上下文预算、幂等、并发、降级、审计）
   --> NPC 领域层（版本化 persona 与 provider-neutral 契约）
-  --> 适配层（DeepSeek 多消息 client、fake provider、日志/指标；当前没有持久化存储）
+  --> 适配层（标准库 SQLite 结构化事实/调用台账、DeepSeek 多消息 client、fake provider、日志/指标）
 ```
 
 Godot 不直连 LLM 或数据库；领域层不直接依赖 FastAPI、Godot、具体 LLM SDK 或 Qdrant。外部模型返回与工具参数一律作为不可信输入处理。
 
-## F-004 当前模块
+## F-005 当前模块
 
 | 模块 | 职责 | 不负责 |
 | --- | --- | --- |
 | `game/` | 最小场景、邻近交互、对话 UI、请求状态 | 角色推理、持久化、好感度规则 |
 | `backend/api/` | HTTP schema、错误码、关联 trace_id | 业务策略与 SQL 细节 |
-| `backend/application/` | 三元 scope 进程内短期记忆、完整回合、UTF-8 预算、同 scope 串行、12 秒 deadline、幂等、输出校验与降级 | persona 文本、HTTP、Godot、具体 SDK 或持久化 |
-| `backend/domain/` | 固定 Nia persona、provider-neutral DTO/错误和严格 loader | 网络、ORM、LLM SDK、记忆或关系状态 |
+| `backend/application/` | 显式记住/忘记、双元长期检索、三元 scope 进程内短期记忆、统一 UTF-8 预算、并发、幂等、golden-set 评估与调用计量 | SQL 细节、HTTP、Godot 或具体 SDK |
+| `backend/domain/` | 固定 Nia persona、结构化长期事实/scope/status、provider-neutral DTO/错误和严格 loader | 网络、ORM、LLM SDK 或关系状态 |
 | `backend/infrastructure/llm/` | fake provider 与隔离 DeepSeek adapter、SDK 错误分类和 usage 转换 | 业务决策、持久化或原始 provider 对象外泄 |
+| `backend/infrastructure/persistence/` | 标准库 SQLite schema/repository、参数化事务、scope 隔离及跨进程验收调用台账 | 模型判断、完整聊天备份、向量检索或公开 API |
 
-当前 API 同时提供 `GET /api/v1/health` 与严格的 `POST /api/v1/dialogue`，公开 Dialogue v1 和 JSON Schema 不因 F-004 改变。Godot 复用既有连接诊断与低保真对话场景，只访问 FastAPI，不持有 API key 或直连 provider。固定 `neon_guide / Nia`、版本化 persona、fake provider 和隔离 DeepSeek adapter 之上新增纯内存短期工作记忆；没有数据库、长期记忆、关系、多 NPC 或工具调用。
+当前 API 同时提供 `GET /api/v1/health` 与严格的 `POST /api/v1/dialogue`，公开 Dialogue v1 和 JSON Schema 不因 F-005 改变，也不新增 memory API。Godot 复用既有连接诊断与低保真对话场景，只访问 FastAPI，不持有 API key 或直连 provider/数据库。启用 provider 时默认 composition 按受限项目 `data/` 路径装配标准库 SQLite repository；disabled provider 不创建数据库，自动化必须把 composition 项目根与数据库一起隔离到 pytest 临时目录。专项授权的真实 DeepSeek 评估使用 Git 忽略的独立验收数据库及调用台账。Step 6 曾因旧 fake 测试只隔离 cwd 而误创建正式路径 `data/cyber-town.sqlite3`；隔离根因已修复，该文件已按用户单独明确授权定向删除，未读取内容，验收库与调用台账完整保留。关系、多 NPC、embedding、Qdrant 和工具调用仍不存在。
 
 ## 工程门禁边界
 
@@ -40,12 +41,12 @@ Godot 不直连 LLM 或数据库；领域层不直接依赖 FastAPI、Godot、�
 
 ## 状态与一致性
 
-- 工作记忆作用域固定为完整 `(player_id, npc_id, conversation_id)`；任一字段变化都不得共享历史。未来关系作用域仍为 `(player_id, npc_id)`，不得混淆。
+- 工作记忆作用域固定为完整 `(player_id, npc_id, conversation_id)`；长期事实作用域固定为 `(player_id, npc_id)`，允许同玩家/NPC 跨 conversation 及服务重启召回，禁止跨 player/NPC 泄漏。
 - F-004 在当前进程内为每个 scope 保留最近 6 个成功完成的完整 user/assistant 回合；最多 128 个活动会话、idle TTL 1800 秒、过期优先和确定性 LRU；在途 session 不得驱逐，无法安全回收时返回可重试 503。
-- 上下文预算按 `64 + system(16 + UTF-8 bytes) + history Σ(16 + UTF-8 bytes) + current(16 + UTF-8 bytes) + 256 <= 8192` 估算；这不是 provider 官方 token 数。唯一 Nia persona system 和当前 user 不裁剪，历史只按完整回合从新到旧选择、从旧到新发送。
+- 上下文预算按 `64 + system + untrusted_long_term_facts + history + current + 256 <= 8192` 估算，每条消息额外 16 单位加 UTF-8 字节；长期事实最多 2048。这不是 provider 官方 token 数。唯一 Nia persona system 和当前 user 不裁剪；长期事实只作为不可信 user 数据整条加入，历史只按完整回合从新到旧选择、从旧到新发送。
 - 同 scope 请求串行，最多等待 2 秒；跨 scope 可并发但 provider 全局上限 2。仅 `completed` 成功请求提交完整回合；degraded、timeout、无效响应、失败、取消、孤儿和晚到结果均不写入。
 - 每次 HTTP 尝试生成独立 `trace_id`；客户端 `request_id` 标识逻辑请求。进程内幂等 TTL 10 分钟、最多 256 项，同 ID 同 payload 合并/复用，同 ID 不同 payload 返回冲突。
-- 进程重启后幂等缓存和短期工作记忆均丢失；跨 worker/进程不共享，这是已接受的当前边界。SQLite、持久审计、持久幂等、长期记忆和其他数据库必须由后续独立任务批准。
+- 进程重启后对话幂等缓存和短期工作记忆均丢失；显式批准的低敏感长期事实与记住/忘记 operation 通过 SQLite 持久化，并可跨进程恢复。真实 provider 调用须通过另一份 metadata-only SQLite 台账原子预留/结算；两类数据均需 Git 忽略，自动化只创建 pytest 临时数据库。
 
 ## 失败与通信
 

@@ -64,6 +64,8 @@ class DeepSeekProvider:
 
         try:
             request.__post_init__()
+            for fact in request.long_term_facts:
+                fact.__post_init__()
             for message in request.history_messages:
                 message.__post_init__()
         except (TypeError, ValueError):
@@ -74,6 +76,8 @@ class DeepSeekProvider:
         messages: list[ChatCompletionMessageParam] = [
             {"role": "system", "content": request.system_prompt}
         ]
+        for fact in request.long_term_facts:
+            messages.append({"role": "user", "content": fact.as_user_content()})
         for message in request.history_messages:
             if message.role == "user":
                 messages.append({"role": "user", "content": message.content})

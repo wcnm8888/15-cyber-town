@@ -18,6 +18,10 @@ htmlcov/
 # Runtime data and audit artifacts
 data/*.db
 data/*.sqlite*
+data/**/*.db
+data/**/*.sqlite*
+data/uat/
+data/acceptance-ledgers/
 data/qdrant/
 logs/
 artifacts/

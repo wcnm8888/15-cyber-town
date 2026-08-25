@@ -23,6 +23,7 @@ from cyber_town.application.provider import (
     ProviderCompletion,
     ProviderHistoryMessage,
     ProviderInvalidResponseError,
+    ProviderLongTermFact,
     ProviderRequest,
     ProviderTimeoutError,
     ProviderUnavailableError,
@@ -49,6 +50,27 @@ def isolate_provider_settings(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -
     monkeypatch.chdir(tmp_path)
     monkeypatch.delenv("LLM_API_KEY", raising=False)
     monkeypatch.delenv("LLM_PROVIDER", raising=False)
+    monkeypatch.setattr("cyber_town.api.composition.PROJECT_ROOT", tmp_path)
+    (tmp_path / "data").mkdir()
+
+
+def test_offline_composition_resolves_its_database_inside_pytest_isolation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    captured_paths: list[tuple[Path, Path]] = []
+
+    def block_repository(*, database_path: Path, allowed_root: Path) -> None:
+        captured_paths.append((database_path, allowed_root))
+        raise RuntimeError("synthetic repository boundary")
+
+    monkeypatch.setattr(
+        "cyber_town.api.composition.SqliteLongTermMemoryRepository", block_repository
+    )
+
+    with pytest.raises(RuntimeError, match="synthetic repository boundary"):
+        build_dialogue_service(enabled_settings(), provider=FakeProvider([]))
+
+    assert captured_paths == [(tmp_path / "data" / "cyber-town.sqlite3", tmp_path / "data")]
 
 
 class StubCompletions:
@@ -228,6 +250,45 @@ def test_adapter_orders_unique_persona_complete_history_and_current_user() -> No
         {"role": "user", "content": "Where is the quiet street?"},
     ]
     assert sum(message["role"] == "system" for message in messages) == 1
+
+
+def test_adapter_places_untrusted_long_term_facts_before_complete_short_term_history() -> None:
+    provider, client = adapter(sdk_response())
+    fact = ProviderLongTermFact("game_alias", "BLUE-47")
+    request = replace(
+        REQUEST,
+        long_term_facts=(fact,),
+        history_messages=(
+            ProviderHistoryMessage("user", "Earlier synthetic question"),
+            ProviderHistoryMessage("assistant", "Earlier synthetic reply"),
+        ),
+    )
+
+    asyncio.run(provider.complete(request))
+
+    messages = client.completions.calls[0]["messages"]
+    assert tuple(message["role"] for message in messages) == (
+        "system",
+        "user",
+        "user",
+        "assistant",
+        "user",
+    )
+    assert messages[1]["content"] == fact.as_user_content()
+    assert "UNTRUSTED_LONG_TERM_MEMORY" in messages[1]["content"]
+    assert sum(message["role"] == "system" for message in messages) == 1
+
+
+def test_adapter_rejects_tampered_long_term_fact_before_sdk_call() -> None:
+    provider, client = adapter(sdk_response())
+    fact = ProviderLongTermFact("game_alias", "BLUE-47")
+    request = replace(REQUEST, long_term_facts=(fact,))
+    object.__setattr__(fact, "fact_key", "system")
+
+    with pytest.raises(ProviderUnavailableError):
+        asyncio.run(provider.complete(request))
+
+    assert client.completions.calls == []
 
 
 @pytest.mark.parametrize("injected_role", ["system", "developer", "tool"])

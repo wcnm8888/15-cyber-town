@@ -39,3 +39,13 @@
 - Step 7 实际用户 UAT 已发生两轮共 8 次：首轮 664 输入/196 输出 tokens、USD 0.00055088；第二轮 718 输入/197 输出 tokens、USD 0.00057596；合计 1382 输入/393 输出 tokens、USD 0.00112684。调用次数已突破原 4 次专项上限，F-004 实际总调用 16 次亦突破原 12 次总上限；后续真实复验必须另获明确新预算。
 - Step 5 后 7 次加 Step 7 全部 8 次的可核算部分共 7708 输入 tokens、479 输出 tokens、USD 0.00402380；Step 5 首次失败请求的 usage 仍不可追溯，不得把已知金额冒充所有 16 次的完整费用。
 - 空历史修复后的用户人工复验使用真实 Godot 窗口与禁用真实 provider 的本地 fake 后端；界面明确回答没有先前信息，退出时 `FAKE_PROVIDER_CALLS=0`。该聚焦复验复用此前已通过的真实模型同 scope UAT，新增真实请求、token 和费用均为 0，不增加或掩盖既有预算超额。
+
+## F-005 结构化长期记忆评估边界
+
+- 固定版本 `f-005-v1` 的 72 项 synthetic/fake-only golden set 覆盖四类批准 fact keys、精确 key、中英文固定别名、跨 player/NPC、更新、遗忘、过期、空结果与无关问题；不得将真实玩家消息、模型回复或 persona prompt 写入数据集。
+- 当前离线结果：precision `1.00`、recall `1.00`，达到冻结阈值 ≥0.95/≥0.90；跨 scope 泄漏、遗忘后召回、过期召回、旧值复活与空结果虚构均为 `0`。纯短期跨 conversation baseline recall 为 `0.00`；不因此引入 Qdrant、embedding 或第二状态真相源。
+- 已实现跨进程 SQLite acceptance ledger：Step 5 限 8 次/USD 0.035，Step 7 限 4 次/USD 0.015，任务总计限 12 次/USD 0.05；每次调用前使用 `BEGIN IMMEDIATE` 原子预留次数与保守整数 micro-USD，provider 返回后先提交官方 prompt/completion usage，再允许语义断言。
+- 未结算 `reserved`、`unknown`、缺失 usage、模型漂移、额度耗尽、并发冲突与损坏台账一律 fail-closed；台账只保存授权标识、Step、模型、状态、token、费用和时间戳，不保存 key、prompt、玩家消息或模型回复。
+- 用户专项授权的真实 FastAPI → DialogueService → DeepSeek 长期记忆评估已通过：跨 conversation 与重建恢复、跨 player 隔离、更新、四类白名单事实、唯一 Nia persona 优先、遗忘后不复活和空结果不虚构均通过；显式记住/忘记及空结果均零 provider 调用。
+- 官方 usage 已先于各项语义断言落入受 Git 忽略的跨进程台账：7 次请求、1244 prompt tokens、106 completion tokens；按峰值 cache-miss 单价逐次向上取整，保守费用 690 micro-USD / USD 0.000690，无未结算请求。Step 5 真实专项仅使用隔离验收 SQLite；Step 6 旧 fake 测试误创建的正式路径文件已按用户单独授权定向删除，隔离根因已修复，调用台账与验收库均保留。
+- Step 6 首轮独立 QA 的 5 项 P1、3 项 P2 已经失败优先修复并由两名 reviewer 复审为 NO FINDINGS。golden evaluator 现在拒绝纯正例/纯负例、缺失生命周期场景及缺少四类批准 fact keys 的退化数据集；短期 baseline 使用可注入实际检索结果计算，拒绝硬编码假满分。Step 7 用户真实窗口 UAT 已通过：3 次、500 输入/141 输出 token、408 micro-USD / USD 0.000408，pending=0；F-005 累计 10 次、1744 输入/247 输出 token、USD 0.001098。统一交付、最终 CI 与归档事实以 GitHub PR #5 为准。

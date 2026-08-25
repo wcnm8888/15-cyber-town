@@ -460,6 +460,27 @@ def test_aborting_later_request_preserves_only_prior_completed_turns() -> None:
     assert store.history(scope) == (first,)
 
 
+def test_redacting_superseded_fact_removes_complete_turns_only_from_its_long_term_scope() -> None:
+    store = ShortTermSessionStore()
+    owner = make_scope(1)
+    second_conversation = make_scope(2)
+    other_player = make_scope(3, player_id="another_player")
+    stale_turn = ConversationTurn("I mentioned BLUE-47.", "The old alias was BLUE-47.")
+    safe_turn = ConversationTurn("Where is the night market?", "Near the neon tram stop.")
+
+    for scope in (owner, second_conversation, other_player):
+        store.begin(scope)
+        store.commit(scope, stale_turn)
+    store.begin(owner)
+    store.commit(owner, safe_turn)
+
+    store.discard_fact_value("local_player", "neon_guide", "BLUE-47")
+
+    assert store.history(owner) == (safe_turn,)
+    assert store.history(second_conversation) == ()
+    assert store.history(other_player) == (stale_turn,)
+
+
 def test_abort_without_active_reservation_is_rejected() -> None:
     store = ShortTermSessionStore()
 

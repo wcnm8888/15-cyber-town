@@ -3,9 +3,11 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+from pathspec import GitIgnoreSpec
 from pydantic import SecretStr, ValidationError
 from pydantic_settings.sources import DotEnvSettingsSource
 
+import cyber_town.config as config
 from cyber_town.config import AppEnvironment, LlmProvider, Settings
 
 CONFIG_ENV_NAMES = (
@@ -34,6 +36,17 @@ CONFIG_ENV_NAMES = (
     "MEMORY_MESSAGE_OVERHEAD_UNITS",
     "MEMORY_RESPONSE_RESERVE_UNITS",
     "MEMORY_SCOPE_WAIT_SECONDS",
+    "LONG_TERM_MEMORY_SCOPE_FIELDS",
+    "LONG_TERM_MEMORY_ALLOWED_FACT_KEYS",
+    "LONG_TERM_MEMORY_MAX_PER_SCOPE",
+    "LONG_TERM_MEMORY_MAX_TOTAL",
+    "LONG_TERM_MEMORY_MAX_RECALL",
+    "LONG_TERM_MEMORY_DEFAULT_TTL_SECONDS",
+    "LONG_TERM_MEMORY_CONTEXT_BUDGET_UNITS",
+    "LONG_TERM_MEMORY_SQLITE_BUSY_TIMEOUT_SECONDS",
+    "LONG_TERM_MEMORY_DATABASE_PATH",
+    "LONG_TERM_MEMORY_UAT_DATABASE_ROOT",
+    "LONG_TERM_MEMORY_ACCEPTANCE_LEDGER_PATH",
 )
 
 F004_NUMERIC_MEMORY_POLICY: tuple[tuple[str, int | float], ...] = (
@@ -45,6 +58,24 @@ F004_NUMERIC_MEMORY_POLICY: tuple[tuple[str, int | float], ...] = (
     ("memory_message_overhead_units", 16),
     ("memory_response_reserve_units", 256),
     ("memory_scope_wait_seconds", 2.0),
+)
+
+F005_NUMERIC_MEMORY_POLICY: tuple[tuple[str, int | float], ...] = (
+    ("long_term_memory_max_per_scope", 64),
+    ("long_term_memory_max_total", 4_096),
+    ("long_term_memory_max_recall", 4),
+    ("long_term_memory_default_ttl_seconds", 30 * 24 * 60 * 60),
+    ("long_term_memory_context_budget_units", 2_048),
+    ("long_term_memory_sqlite_busy_timeout_seconds", 2.0),
+)
+
+F005_APPROVED_PATHS: tuple[tuple[str, Path], ...] = (
+    ("long_term_memory_database_path", Path("data/cyber-town.sqlite3")),
+    ("long_term_memory_uat_database_root", Path("data/uat/f-005")),
+    (
+        "long_term_memory_acceptance_ledger_path",
+        Path("data/acceptance-ledgers/f-005.sqlite3"),
+    ),
 )
 
 
@@ -395,4 +426,240 @@ def test_f004_numeric_environment_drift_fails_closed(
     monkeypatch.setenv("MEMORY_CONTEXT_BUDGET_UNITS", "8193")
 
     with pytest.raises(ValidationError, match="MEMORY_CONTEXT_BUDGET_UNITS must remain"):
+        Settings.model_validate({})
+
+
+def test_f005_freezes_default_long_term_memory_policy() -> None:
+    settings = Settings.model_validate({})
+
+    assert settings.long_term_memory_scope_fields == ("player_id", "npc_id")
+    assert settings.long_term_memory_allowed_fact_keys == (
+        "game_alias",
+        "preferred_language",
+        "reply_style",
+        "favorite_cyber_town_topic",
+    )
+    for field, expected in F005_NUMERIC_MEMORY_POLICY:
+        assert getattr(settings, field) == expected
+    for field, expected_path in F005_APPROVED_PATHS:
+        assert getattr(settings, field) == expected_path
+    assert settings.memory_context_budget_units == 8_192
+    assert settings.memory_response_reserve_units == 256
+    assert settings.long_term_memory_context_budget_units < settings.memory_context_budget_units
+
+
+def test_f005_approved_memory_policy_parses_from_environment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    approved_values = {
+        "LONG_TERM_MEMORY_SCOPE_FIELDS": '["player_id", "npc_id"]',
+        "LONG_TERM_MEMORY_ALLOWED_FACT_KEYS": (
+            '["game_alias", "preferred_language", "reply_style", "favorite_cyber_town_topic"]'
+        ),
+        "LONG_TERM_MEMORY_MAX_PER_SCOPE": "64",
+        "LONG_TERM_MEMORY_MAX_TOTAL": "4096",
+        "LONG_TERM_MEMORY_MAX_RECALL": "4",
+        "LONG_TERM_MEMORY_DEFAULT_TTL_SECONDS": "2592000",
+        "LONG_TERM_MEMORY_CONTEXT_BUDGET_UNITS": "2048",
+        "LONG_TERM_MEMORY_SQLITE_BUSY_TIMEOUT_SECONDS": "2",
+        "LONG_TERM_MEMORY_DATABASE_PATH": "data/cyber-town.sqlite3",
+        "LONG_TERM_MEMORY_UAT_DATABASE_ROOT": "data/uat/f-005",
+        "LONG_TERM_MEMORY_ACCEPTANCE_LEDGER_PATH": "data/acceptance-ledgers/f-005.sqlite3",
+    }
+    for name, value in approved_values.items():
+        monkeypatch.setenv(name, value)
+
+    settings = Settings.model_validate({})
+
+    assert settings.long_term_memory_scope_fields == ("player_id", "npc_id")
+    for field, expected in F005_NUMERIC_MEMORY_POLICY:
+        assert getattr(settings, field) == expected
+    for field, expected_path in F005_APPROVED_PATHS:
+        assert getattr(settings, field) == expected_path
+
+
+@pytest.mark.parametrize(
+    "scope_fields",
+    [
+        (),
+        ("player_id",),
+        ("npc_id", "player_id"),
+        ("player_id", "npc_id", "conversation_id"),
+        ("player_id", "player_id"),
+        ("player_id", None),
+        "player_id,npc_id",
+        {"player_id": "player", "npc_id": "npc"},
+    ],
+)
+def test_f005_rejects_invalid_long_term_scope(scope_fields: object) -> None:
+    with pytest.raises(ValidationError):
+        Settings.model_validate({"long_term_memory_scope_fields": scope_fields})
+
+
+@pytest.mark.parametrize(
+    "fact_keys",
+    [
+        (),
+        ("game_alias", "preferred_language", "reply_style"),
+        ("game_alias", "preferred_language", "reply_style", "unapproved"),
+        ("preferred_language", "game_alias", "reply_style", "favorite_cyber_town_topic"),
+        ("game_alias", "game_alias", "reply_style", "favorite_cyber_town_topic"),
+        ("game_alias", "preferred_language", "reply_style", None),
+        "game_alias,preferred_language,reply_style,favorite_cyber_town_topic",
+        {"game_alias": "allowed"},
+    ],
+)
+def test_f005_rejects_unapproved_or_invalid_fact_keys(fact_keys: object) -> None:
+    with pytest.raises(ValidationError):
+        Settings.model_validate({"long_term_memory_allowed_fact_keys": fact_keys})
+
+
+@pytest.mark.parametrize(("field", "approved"), F005_NUMERIC_MEMORY_POLICY)
+@pytest.mark.parametrize("offset", [-1, 1])
+def test_f005_rejects_drift_from_frozen_long_term_memory_policy(
+    field: str,
+    approved: int | float,
+    offset: int,
+) -> None:
+    with pytest.raises(ValidationError, match="must remain"):
+        Settings.model_validate({field: approved + offset})
+
+
+@pytest.mark.parametrize(("field", "_approved"), F005_NUMERIC_MEMORY_POLICY)
+@pytest.mark.parametrize("value", [0, -1])
+def test_f005_rejects_nonpositive_long_term_memory_policy_values(
+    field: str,
+    _approved: int | float,
+    value: int,
+) -> None:
+    with pytest.raises(ValidationError):
+        Settings.model_validate({field: value})
+
+
+@pytest.mark.parametrize(("field", "_approved"), F005_NUMERIC_MEMORY_POLICY)
+@pytest.mark.parametrize("value", [None, True, 1.5, "not-a-number", {}, []])
+def test_f005_rejects_invalid_long_term_memory_policy_types(
+    field: str,
+    _approved: int | float,
+    value: object,
+) -> None:
+    with pytest.raises(ValidationError):
+        Settings.model_validate({field: value})
+
+
+@pytest.mark.parametrize(("field", "approved"), F005_NUMERIC_MEMORY_POLICY[:-1])
+def test_f005_integer_policy_rejects_integral_float_values(
+    field: str,
+    approved: int | float,
+) -> None:
+    with pytest.raises(ValidationError):
+        Settings.model_validate({field: float(approved)})
+
+
+@pytest.mark.parametrize("value", [float("nan"), float("inf"), -float("inf")])
+def test_f005_sqlite_busy_timeout_rejects_nonfinite_values(value: float) -> None:
+    with pytest.raises(ValidationError):
+        Settings.model_validate({"long_term_memory_sqlite_busy_timeout_seconds": value})
+
+
+@pytest.mark.parametrize(("field", "_approved"), F005_APPROVED_PATHS)
+@pytest.mark.parametrize(
+    "value",
+    [
+        None,
+        True,
+        123,
+        {},
+        [],
+        "../other-project.sqlite3",
+        "data/../other-project.sqlite3",
+        "/outside/project.sqlite3",
+        "E:/Agent/comprehensive-cases/13-intelligent-travel-assistant/private.sqlite3",
+    ],
+)
+def test_f005_rejects_invalid_or_escaping_sqlite_paths(
+    field: str,
+    _approved: Path,
+    value: object,
+) -> None:
+    with pytest.raises(ValidationError):
+        Settings.model_validate({field: value})
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("long_term_memory_database_path", "data/other.sqlite3"),
+        ("long_term_memory_uat_database_root", "data/uat/f-004"),
+        ("long_term_memory_acceptance_ledger_path", "data/acceptance-ledgers/f-004.sqlite3"),
+    ],
+)
+def test_f005_rejects_unapproved_paths_within_data_root(field: str, value: str) -> None:
+    with pytest.raises(ValidationError, match="must remain"):
+        Settings.model_validate({field: value})
+
+
+def test_f005_rejects_symbolic_linked_data_directory(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_is_symlink = Path.is_symlink
+
+    def is_symlink(path: Path) -> bool:
+        return path == config.PROJECT_ROOT / "data" or original_is_symlink(path)
+
+    monkeypatch.setattr(Path, "is_symlink", is_symlink)
+
+    with pytest.raises(ValidationError, match="symbolic links or junctions"):
+        Settings.model_validate({})
+
+
+@pytest.mark.parametrize(
+    "relative_path",
+    [
+        "data/cyber-town.sqlite3",
+        "data/cyber-town.sqlite3-wal",
+        "data/cyber-town.sqlite3-shm",
+        "data/cyber-town.sqlite3-journal",
+        "data/uat/f-005/synthetic-run/cyber-town.sqlite3",
+        "data/uat/f-005/synthetic-run/cyber-town.sqlite3-wal",
+        "data/uat/f-005/synthetic-run/cyber-town.sqlite3-shm",
+        "data/uat/f-005/synthetic-run/cyber-town.sqlite3-journal",
+        "data/uat/f-005/synthetic-run/trace.json",
+        "data/acceptance-ledgers/f-005.sqlite3",
+        "data/acceptance-ledgers/f-005.sqlite3-wal",
+        "data/acceptance-ledgers/f-005.sqlite3-shm",
+        "data/acceptance-ledgers/f-005.sqlite3-journal",
+        "data/nested/example.db",
+        "data/nested/example.sqlite",
+    ],
+)
+def test_f005_runtime_database_and_acceptance_artifacts_are_ignored(relative_path: str) -> None:
+    repository_root = Path(__file__).resolve().parents[2]
+    ignore_spec = GitIgnoreSpec.from_lines(
+        (repository_root / ".gitignore").read_text(encoding="utf-8").splitlines()
+    )
+
+    assert ignore_spec.match_file(relative_path)
+
+
+def test_f005_ignore_policy_does_not_hide_reviewable_data_documentation() -> None:
+    repository_root = Path(__file__).resolve().parents[2]
+    ignore_spec = GitIgnoreSpec.from_lines(
+        (repository_root / ".gitignore").read_text(encoding="utf-8").splitlines()
+    )
+
+    assert not ignore_spec.match_file("data/public-policy.md")
+
+
+def test_f005_scope_environment_drift_fails_closed(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("LONG_TERM_MEMORY_SCOPE_FIELDS", '["npc_id", "player_id"]')
+
+    with pytest.raises(ValidationError, match="LONG_TERM_MEMORY_SCOPE_FIELDS must remain"):
+        Settings.model_validate({})
+
+
+def test_f005_path_environment_escape_fails_closed(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("LONG_TERM_MEMORY_DATABASE_PATH", "data/../sibling.sqlite3")
+
+    with pytest.raises(ValidationError):
         Settings.model_validate({})

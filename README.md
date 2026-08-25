@@ -2,7 +2,7 @@
 
 一个用于系统学习 Agent 工程的 AI NPC 赛博小镇项目。目标是在 Godot 场景中让玩家与具备角色、记忆和可审计行为边界的 NPC 交互。
 
-`F-001`、`F-002`、`F-003` 与 `F-004` 的统一交付载体分别为 PR #1、PR #2、PR #3、PR #4。固定 Nia 对话已支持按 `player_id + npc_id + conversation_id` 隔离的进程内短期工作记忆、完整回合裁剪、fake-only 多轮联调和已批准的真实 DeepSeek 多轮评估；空历史追问明确回答“不知道”且零 provider 调用，用户真实 Godot 窗口 UAT 已通过。当前无活动任务；F-004 最终 CI 与合并事实以 GitHub PR #4 为准。项目没有数据库、长期记忆、多 NPC 或 R-05 实现；项目规则与当前事实见 [AGENTS.md](AGENTS.md) 和 [docs/README.md](docs/README.md)。
+`F-001`、`F-002`、`F-003` 与 `F-004` 已分别通过 PR #1—#4 完成交付和归档；`F-005 长期记忆与检索评估` 的统一交付与归档载体为 PR #5，首个功能 HEAD 的 GitHub Linux `quality` 已通过，最终 CI 与合并事实以 GitHub 为准。固定 Nia 对话已有按 `player_id + npc_id + conversation_id` 隔离的进程内短期记忆，以及按 `player_id + npc_id` 隔离的标准库 SQLite 结构化长期记忆。独立 QA 无未解决发现，用户真实窗口 UAT 已通过，F-005 实际累计 10 次、1744 输入/247 输出 token、USD 0.001098；本地 fake-only 门禁 1095 passed。当前无活动任务，不自动进入 R-06。项目规则与当前事实见 [AGENTS.md](AGENTS.md) 和 [docs/README.md](docs/README.md)。
 
 当前统一验证命令：`uv run --frozen python scripts/quality.py`。它执行 Git ignore/敏感信息预检、lock、ruff、mypy、schema、Godot 导入与单测、9 个 F-002 健康 loopback、10 个对话 fake loopback、pytest 和最终策略复检；对话场景包含连续多轮与失败后的手动 Retry 恢复。每个质量子进程强制禁用 `.env`、剔除继承的 provider key 并固定 `LLM_PROVIDER=disabled`；对话集成仅使用本地 FastAPI 和 fake provider。需要 Godot 4.7.2，可通过 `CYBER_TOWN_GODOT` 指向 executable；Windows 默认也会检查本项目批准的便携路径。
 
@@ -33,7 +33,7 @@ E:\Agent.tools\godot\4.7.2\Godot_v4.7.2-stable_win64_console.exe --path game
 
 ## CI 边界
 
-`.github/workflows/quality.yml` 在 `main` push、pull request 和人工触发时运行同一入口。workflow 只有 `contents: read` 权限，不引用 secrets、不持久化 checkout 凭证、不启动服务容器，也不调用 LLM、数据库或生产服务。runner 从公开发行源取得 action、uv、Python、锁定依赖和经 SHA-256 固定的 Godot 4.7.2 Standard Linux 包；所有集成流量仅在 runner 的 `127.0.0.1:8000` 内发生。F-002 的远程交付与最终 CI 事实由 PR #2 记录。
+`.github/workflows/quality.yml` 在 `main` push、pull request 和人工触发时运行同一入口。workflow 只有 `contents: read` 权限，不引用 secrets、不持久化 checkout 凭证、不启动服务容器，也不访问真实 LLM、正式数据库或生产服务；F-005 的 SQLite 测试只使用隔离临时数据库。runner 从公开发行源取得 action、uv、Python、锁定依赖和经 SHA-256 固定的 Godot 4.7.2 Standard Linux 包；所有集成流量仅在 runner 的 `127.0.0.1:8000` 内发生。F-002 的远程交付与最终 CI 事实由 PR #2 记录。
 
 ## 本地对话场景
 
@@ -53,4 +53,6 @@ uv run --frozen python -m cyber_town.api
 & 'E:\Agent.tools\godot\4.7.2\Godot_v4.7.2-stable_win64_console.exe' --path game --scene res://scenes/dialogue.tscn
 ```
 
-F-004 每个 scope 最多保留最近 6 个已成功完成的完整回合，最多 128 个活动会话，空闲 TTL 为 1800 秒。上下文上限 8192 为 UTF-8 字节与固定开销的保守工程估算，不是 provider 官方 token 数；固定预留 256 回复单位。服务重启后记忆丢失，不创建 SQLite、Qdrant 或其他数据库。空历史会话收到明确的既往交流追问时返回确定性的 `degraded / local-fallback`，不调用 provider、不计费且不写记忆。F-004 Step 7 真实复验的调用、API key 使用和费用仍须另行明确授权。
+短期记忆每个 conversation scope 最多保留最近 6 个成功完整回合，最多 128 个活动会话，空闲 TTL 为 1800 秒；该层随服务重启丢失。F-005 长期层只允许 `game_alias`、`preferred_language`、`reply_style`、`favorite_cyber_town_topic` 四类明确授权的低敏感事实，使用 `(player_id, npc_id)` 与标准库 SQLite 保留、更新、过期和遗忘；自动测试只使用 pytest 隔离数据库。启用 provider 的常规启动会装配正式路径 `data/cyber-town.sqlite3`，且不自动接入验收调用台账；F-005 Step 7 用户 UAT 必须使用单独的隔离 SQLite 和 `MeteredAcceptanceProvider` 启动器，不得使用上面的普通启动命令。
+
+上下文上限 8192 为 UTF-8 字节与固定开销的工程估算，不是 provider 官方 token 数；长期事实最多 2048，固定预留 256 回复单位，唯一 persona system 后只注入标记为不可信的事实及完整短期回合。没有可用记忆或已遗忘时返回确定性 `degraded / local-fallback`，不调用 provider、不计费。F-005 的真实评估最多 8 次/USD 0.035，用户 UAT 最多 4 次/USD 0.015；两个阶段都须单独授权，并由跨进程 SQLite 台账在调用前预留、provider 返回后先持久化脱敏 usage。

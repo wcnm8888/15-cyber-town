@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 from enum import StrEnum
+from pathlib import Path
 from typing import Any, Self
 
 from pydantic import Field, SecretStr, field_validator, model_validator
@@ -27,6 +28,17 @@ class LlmProvider(StrEnum):
 DEEPSEEK_MODEL = "deepseek-v4-flash"
 DEEPSEEK_BASE_URL = "https://api.deepseek.com"
 MEMORY_SCOPE_FIELDS: tuple[str, str, str] = ("player_id", "npc_id", "conversation_id")
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+LONG_TERM_MEMORY_SCOPE_FIELDS: tuple[str, str] = ("player_id", "npc_id")
+LONG_TERM_MEMORY_ALLOWED_FACT_KEYS: tuple[str, str, str, str] = (
+    "game_alias",
+    "preferred_language",
+    "reply_style",
+    "favorite_cyber_town_topic",
+)
+LONG_TERM_MEMORY_DATABASE_PATH = Path("data/cyber-town.sqlite3")
+LONG_TERM_MEMORY_UAT_DATABASE_ROOT = Path("data/uat/f-005")
+LONG_TERM_MEMORY_ACCEPTANCE_LEDGER_PATH = Path("data/acceptance-ledgers/f-005.sqlite3")
 
 
 class Settings(BaseSettings):
@@ -67,6 +79,24 @@ class Settings(BaseSettings):
     memory_response_reserve_units: int = Field(default=256, gt=0)
     memory_scope_wait_seconds: float = Field(default=2.0, gt=0, allow_inf_nan=False)
 
+    long_term_memory_scope_fields: tuple[str, str] = LONG_TERM_MEMORY_SCOPE_FIELDS
+    long_term_memory_allowed_fact_keys: tuple[str, str, str, str] = (
+        LONG_TERM_MEMORY_ALLOWED_FACT_KEYS
+    )
+    long_term_memory_max_per_scope: int = Field(default=64, gt=0)
+    long_term_memory_max_total: int = Field(default=4_096, gt=0)
+    long_term_memory_max_recall: int = Field(default=4, gt=0)
+    long_term_memory_default_ttl_seconds: int = Field(default=30 * 24 * 60 * 60, gt=0)
+    long_term_memory_context_budget_units: int = Field(default=2_048, gt=0)
+    long_term_memory_sqlite_busy_timeout_seconds: float = Field(
+        default=2.0,
+        gt=0,
+        allow_inf_nan=False,
+    )
+    long_term_memory_database_path: Path = LONG_TERM_MEMORY_DATABASE_PATH
+    long_term_memory_uat_database_root: Path = LONG_TERM_MEMORY_UAT_DATABASE_ROOT
+    long_term_memory_acceptance_ledger_path: Path = LONG_TERM_MEMORY_ACCEPTANCE_LEDGER_PATH
+
     def __init__(self, **values: Any) -> None:
         if os.environ.get("CYBER_TOWN_DISABLE_DOTENV") == "1":
             values["_env_file"] = None
@@ -104,6 +134,65 @@ class Settings(BaseSettings):
             raise ValueError("Short-term memory policy values must be integers")
         return value
 
+    @field_validator(
+        "long_term_memory_max_per_scope",
+        "long_term_memory_max_total",
+        "long_term_memory_max_recall",
+        "long_term_memory_default_ttl_seconds",
+        "long_term_memory_context_budget_units",
+        mode="before",
+    )
+    @classmethod
+    def reject_noninteger_long_term_memory_policy_values(cls, value: object) -> object:
+        """Reject bool/float coercion without breaking normal environment parsing."""
+
+        if isinstance(value, (bool, float)):
+            raise ValueError("Long-term memory policy values must be integers")
+        return value
+
+    @field_validator(
+        "long_term_memory_database_path",
+        "long_term_memory_uat_database_root",
+        "long_term_memory_acceptance_ledger_path",
+        mode="before",
+    )
+    @classmethod
+    def reject_escaping_long_term_memory_paths(cls, value: object) -> object:
+        """Reject external and parent-traversing SQLite paths without opening them."""
+
+        if not isinstance(value, (str, Path)):
+            raise ValueError("Long-term memory paths must be strings or paths")
+
+        candidate = Path(value)
+        if candidate.anchor or ".." in candidate.parts or not candidate.parts:
+            raise ValueError("Long-term memory paths must remain inside project data")
+        return candidate
+
+    def _validate_long_term_memory_paths(self) -> None:
+        """Keep every approved runtime location inside non-linked project data."""
+
+        data_root = PROJECT_ROOT / "data"
+        approved_paths = (
+            ("LONG_TERM_MEMORY_DATABASE_PATH", self.long_term_memory_database_path),
+            ("LONG_TERM_MEMORY_UAT_DATABASE_ROOT", self.long_term_memory_uat_database_root),
+            (
+                "LONG_TERM_MEMORY_ACCEPTANCE_LEDGER_PATH",
+                self.long_term_memory_acceptance_ledger_path,
+            ),
+        )
+        resolved_data_root = data_root.resolve(strict=False)
+
+        for name, relative_path in approved_paths:
+            candidate = PROJECT_ROOT / relative_path
+            if not candidate.resolve(strict=False).is_relative_to(resolved_data_root):
+                raise ValueError(f"{name} must remain inside project data")
+
+            for current in (candidate, *candidate.parents):
+                if current == PROJECT_ROOT:
+                    break
+                if current.is_symlink() or current.is_junction():
+                    raise ValueError(f"{name} must not traverse symbolic links or junctions")
+
     @model_validator(mode="after")
     def require_key_for_enabled_provider(self) -> Self:
         """Reject an enabled provider unless a non-empty secret is supplied."""
@@ -134,6 +223,57 @@ class Settings(BaseSettings):
         for name, actual, expected in memory_frozen_values:
             if actual != expected:
                 raise ValueError(f"{name} must remain {expected} for F-004")
+
+        long_term_frozen_values: tuple[tuple[str, object, object], ...] = (
+            (
+                "LONG_TERM_MEMORY_SCOPE_FIELDS",
+                self.long_term_memory_scope_fields,
+                LONG_TERM_MEMORY_SCOPE_FIELDS,
+            ),
+            (
+                "LONG_TERM_MEMORY_ALLOWED_FACT_KEYS",
+                self.long_term_memory_allowed_fact_keys,
+                LONG_TERM_MEMORY_ALLOWED_FACT_KEYS,
+            ),
+            ("LONG_TERM_MEMORY_MAX_PER_SCOPE", self.long_term_memory_max_per_scope, 64),
+            ("LONG_TERM_MEMORY_MAX_TOTAL", self.long_term_memory_max_total, 4_096),
+            ("LONG_TERM_MEMORY_MAX_RECALL", self.long_term_memory_max_recall, 4),
+            (
+                "LONG_TERM_MEMORY_DEFAULT_TTL_SECONDS",
+                self.long_term_memory_default_ttl_seconds,
+                30 * 24 * 60 * 60,
+            ),
+            (
+                "LONG_TERM_MEMORY_CONTEXT_BUDGET_UNITS",
+                self.long_term_memory_context_budget_units,
+                2_048,
+            ),
+            (
+                "LONG_TERM_MEMORY_SQLITE_BUSY_TIMEOUT_SECONDS",
+                self.long_term_memory_sqlite_busy_timeout_seconds,
+                2.0,
+            ),
+            (
+                "LONG_TERM_MEMORY_DATABASE_PATH",
+                self.long_term_memory_database_path,
+                LONG_TERM_MEMORY_DATABASE_PATH,
+            ),
+            (
+                "LONG_TERM_MEMORY_UAT_DATABASE_ROOT",
+                self.long_term_memory_uat_database_root,
+                LONG_TERM_MEMORY_UAT_DATABASE_ROOT,
+            ),
+            (
+                "LONG_TERM_MEMORY_ACCEPTANCE_LEDGER_PATH",
+                self.long_term_memory_acceptance_ledger_path,
+                LONG_TERM_MEMORY_ACCEPTANCE_LEDGER_PATH,
+            ),
+        )
+        for name, actual, expected in long_term_frozen_values:
+            if actual != expected:
+                raise ValueError(f"{name} must remain {expected} for F-005")
+
+        self._validate_long_term_memory_paths()
 
         if self.llm_thinking_enabled:
             raise ValueError("LLM_THINKING_ENABLED must remain false for F-003")
