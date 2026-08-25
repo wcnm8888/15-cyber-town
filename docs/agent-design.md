@@ -13,7 +13,8 @@
 ## 隔离模型
 
 - `NpcProfile`：静态、版本化 persona；不同 NPC 绝不共享可变提示状态。
-- `ConversationScope`：`player_id + npc_id + conversation_id`；短期消息、关系与记忆检索都必须过滤该 scope。
+- `ConversationScope`：`player_id + npc_id + conversation_id`；短期完整回合必须严格过滤该三元 scope。
+- `LongTermMemoryScope`：`player_id + npc_id`；只有显式批准的低敏感结构化事实允许跨 conversation 检索，来源 conversation/request/trace 不替代所有权隔离。
 - `SharedModelClient`：共享连接池、限流、重试和成本统计；不能承载 NPC 记忆或 persona。
 - `DialogueOrchestrator`：每次请求创建独立命令对象，写入同一 `trace_id` 的审计事件。
 
@@ -25,10 +26,17 @@
 
 首版不需要多 Agent。每个 NPC 是同一单 NPC 对话能力的独立领域实例，而非多个自主协作者。只有出现可独立并行、明确跨 NPC 协议、调度锁、共享世界事实和评估标准后，才评估 NPC 间互动。
 
-## F-003 当前切片
+## F-003 已归档 persona 基线
 
-- 唯一 NPC 是 `neon_guide / Nia`，persona 由版本化 `nia_v1.json` 冻结；她不得声称拥有工具、网络、数据库或长期记忆。
+- 唯一 NPC 是 `neon_guide / Nia`，persona 由版本化 `nia_v1.json` 冻结；她不得声称直接访问工具、网络或数据库。F-005 只允许根据已经验证并明确注入的低敏感结构化事实回答，不得编造未注入的长期记忆。
 - Godot 只调用 FastAPI；应用层选择 persona、执行 12 秒 deadline、严格校验 provider 结果并维护 10 分钟/256 项进程内幂等。具体 OpenAI SDK 类型只存在于 DeepSeek adapter。
 - provider 固定 non-thinking、non-stream、零自动 retry；Godot 失败后只允许玩家手动 Retry，并复用同一 request ID 和冻结 payload。
 - 结构化 audit 只允许 trace/request ID、persona/provider/model、结果、延迟、usage、费用估算和字符数，不记录原始 prompt、玩家消息、模型回复、API key 或 provider body。
-- Step 5 的 12 项真实 persona 用例与 Godot 端到端已通过；这不等同于独立 QA、用户窗口 UAT，也不授权记忆、多 NPC 或 R-04。
+- F-003 历史 Step 5 的 12 项真实 persona 用例与 Godot 端到端已通过；F-005 的真实评估、独立 QA 和用户 UAT 必须按当前任务分别授权和验收。
+
+## F-005 当前长期记忆边界
+
+- Nia 仍为唯一、最高优先级 system persona；只允许确定性服务管理 `game_alias`、`preferred_language`、`reply_style` 与 `favorite_cyber_town_topic`。模型既不能自行记住/删除，也不能把长期事实改写为 system/developer/tool 指令。
+- 显式记住/忘记通过既有 Dialogue v1 直接返回 `completed / local-memory`，零 provider 调用；普通问题只读取双元 scope、active、未过期、匹配固定 key/别名的事实，随后作为 `UNTRUSTED_LONG_TERM_MEMORY` user 数据发送。
+- 统一上下文顺序为唯一 persona system → 受限长期事实 → 完整短期 user/assistant → 当前 user；总工程预算 8192、长期事实最多 2048、回复预留 256，禁止半条事实、半回合和过期/遗忘正文复活。
+- 72 项 fake-only golden set、Godot loopback 和专项授权的真实 DeepSeek 评估均已验证跨 conversation/重启恢复、跨 player 隔离、更新、遗忘和 honest unknown；Step 5 真实评估额外确认四类批准事实与 Nia persona 优先，7 次调用/USD 0.000690。Step 6 独立 QA 零发现，Step 7 用户真实窗口 UAT 以 3 次调用/USD 0.000408 通过跨窗口、重启、更新和遗忘验收；后续真实调用仍需独立授权和跨进程预算台账。

@@ -2,15 +2,17 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from enum import StrEnum
 
 from cyber_town.application.memory import ConversationTurn
-from cyber_town.application.provider import ProviderHistoryMessage
+from cyber_town.application.provider import ProviderHistoryMessage, ProviderLongTermFact
 
 CONTEXT_BUDGET_UNITS = 8_192
 REQUEST_OVERHEAD_UNITS = 64
 MESSAGE_OVERHEAD_UNITS = 16
 RESPONSE_RESERVE_UNITS = 256
+LONG_TERM_CONTEXT_BUDGET_UNITS = 2_048
 
 
 class ContextBudgetFailure(StrEnum):
@@ -32,6 +34,8 @@ def estimate_context_units(
     system_prompt: str,
     current_message: str,
     history_messages: tuple[ProviderHistoryMessage, ...],
+    *,
+    long_term_facts: tuple[ProviderLongTermFact, ...] = (),
 ) -> int:
     """Estimate UTF-8 bytes and fixed envelope overhead; this is not token usage."""
 
@@ -39,6 +43,10 @@ def estimate_context_units(
         REQUEST_OVERHEAD_UNITS
         + MESSAGE_OVERHEAD_UNITS
         + len(system_prompt.encode("utf-8"))
+        + sum(
+            MESSAGE_OVERHEAD_UNITS + len(fact.as_user_content().encode("utf-8"))
+            for fact in long_term_facts
+        )
         + sum(
             MESSAGE_OVERHEAD_UNITS + len(item.content.encode("utf-8")) for item in history_messages
         )
@@ -92,3 +100,54 @@ def select_history_messages(
         remaining_units -= pair_units
 
     return tuple(message for pair in reversed(selected_pairs) for message in pair)
+
+
+@dataclass(frozen=True, slots=True)
+class SelectedContext:
+    """Whole structured facts and whole recent user/assistant conversation turns."""
+
+    long_term_facts: tuple[ProviderLongTermFact, ...]
+    history_messages: tuple[ProviderHistoryMessage, ...]
+
+
+def select_context_messages(
+    system_prompt: str,
+    current_message: str,
+    turns: tuple[ConversationTurn, ...],
+    long_term_facts: tuple[ProviderLongTermFact, ...],
+) -> SelectedContext:
+    """Reserve persona/reply, keep ranked whole facts, then retain newest whole turns."""
+
+    if not isinstance(long_term_facts, tuple):
+        raise TypeError("Long-term facts must be an immutable tuple")
+    if len(long_term_facts) > 4:
+        raise ValueError("Long-term facts exceed the approved recall limit")
+    for fact in long_term_facts:
+        if not isinstance(fact, ProviderLongTermFact):
+            raise TypeError("Long-term facts must use provider-neutral values")
+        fact.__post_init__()
+
+    history = select_history_messages(system_prompt, current_message, turns)
+    remaining = CONTEXT_BUDGET_UNITS - estimate_context_units(system_prompt, current_message, ())
+    long_term_allocation = min(remaining, LONG_TERM_CONTEXT_BUDGET_UNITS)
+    selected_facts: list[ProviderLongTermFact] = []
+    for fact in long_term_facts:
+        fact_units = MESSAGE_OVERHEAD_UNITS + len(fact.as_user_content().encode("utf-8"))
+        if fact_units > long_term_allocation:
+            break
+        selected_facts.append(fact)
+        long_term_allocation -= fact_units
+
+    selected_tuple = tuple(selected_facts)
+    while (
+        estimate_context_units(
+            system_prompt,
+            current_message,
+            history,
+            long_term_facts=selected_tuple,
+        )
+        > CONTEXT_BUDGET_UNITS
+    ):
+        history = history[2:]
+
+    return SelectedContext(long_term_facts=selected_tuple, history_messages=history)

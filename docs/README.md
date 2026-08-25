@@ -10,7 +10,7 @@
 - 当前状态：[`project-management/progress.md`](project-management/progress.md)
 - 验收证据：[`project-management/evidence.md`](project-management/evidence.md)
 
-`F-001`、`F-002`、`F-003` 与 `F-004` 的统一交付载体分别为 PR #1、PR #2、PR #3、PR #4。F-004 的真实 DeepSeek 多轮评估、独立 QA、用户真实 Godot 窗口 UAT、fake-only 最终本地门禁与任务归档均已准备完成；最终 CI 与合并事实以 GitHub PR #4 为准。当前无活动任务，未进入 R-05，也未创建 `memory-bank/`；本 `docs/` 仍是唯一权威文档体系。
+`F-001`、`F-002`、`F-003` 与 `F-004` 已分别通过 PR #1、PR #2、PR #3、PR #4 完成交付和归档；F-004 已 squash merge 至 `main`，基线为 `3e03d64d129871495f3fe73295ee9b11478f2e71`。当前唯一活动任务为 `R-05 / F-005 长期记忆与检索评估`，状态为 `step_7_complete / ready_for_git_delivery`；Step 5 专项真实评估为 7 次、1244 输入/106 输出 token、USD 0.000690。Step 6 已修复首轮 5 项 P1、3 项 P2 及独立复审近邻，两名 reviewer 均 NO FINDINGS。Step 7 用户通过隔离 SQLite、跨进程调用台账与真实 Godot 窗口完成 UAT，实际 3 次、500 输入/141 输出 token、USD 0.000408；任务累计 10 次、USD 0.001098、pending=0。最终 fake-only 全量 1095 passed，正式数据库未创建、8000 端口已释放；Git 交付仍未授权。未创建 `memory-bank/`，本 `docs/` 仍是唯一权威文档体系。
 
 ## 权威文档与更新规则
 

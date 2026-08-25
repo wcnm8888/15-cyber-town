@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 import time
+import unicodedata
 from collections import OrderedDict, deque
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -160,6 +161,30 @@ class ShortTermSessionStore:
             return
 
         self._touch(scope, session, self._clock())
+
+    def discard_fact_value(self, player_id: str, npc_id: str, fact_value: str) -> None:
+        """Drop complete stale turns across only their owning player/NPC conversations."""
+
+        if not isinstance(fact_value, str) or not fact_value:
+            raise ValueError("A discarded memory value must be a nonempty string")
+
+        normalized_value = unicodedata.normalize("NFKC", fact_value).casefold()
+        for scope, session in tuple(self._sessions.items()):
+            if scope.player_id != player_id or scope.npc_id != npc_id:
+                continue
+            session.turns = deque(
+                (
+                    turn
+                    for turn in session.turns
+                    if normalized_value
+                    not in unicodedata.normalize("NFKC", turn.user_message).casefold()
+                    and normalized_value
+                    not in unicodedata.normalize("NFKC", turn.assistant_message).casefold()
+                ),
+                maxlen=self._max_turns,
+            )
+            if not session.turns and session.in_flight == 0:
+                del self._sessions[scope]
 
     @staticmethod
     def _require_scope(scope: ConversationScope) -> None:

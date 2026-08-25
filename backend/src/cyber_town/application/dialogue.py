@@ -11,11 +11,13 @@ from collections import OrderedDict
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from enum import StrEnum
+from typing import TYPE_CHECKING
 from uuid import UUID
 
 from cyber_town.application.context_budget import (
     ContextBudgetError,
     ContextBudgetFailure,
+    select_context_messages,
     select_history_messages,
 )
 from cyber_town.application.memory import (
@@ -28,6 +30,7 @@ from cyber_town.application.provider import (
     ProviderCompletion,
     ProviderHistoryMessage,
     ProviderInvalidResponseError,
+    ProviderLongTermFact,
     ProviderProtocol,
     ProviderRequest,
     ProviderTimeoutError,
@@ -40,7 +43,15 @@ from cyber_town.contracts.v1 import (
     DialogueResponseV1,
     DialogueStatus,
 )
+from cyber_town.domain.long_term_memory import LongTermMemoryScope
 from cyber_town.domain.persona import PersonaDefinition
+from cyber_town.infrastructure.persistence.sqlite_long_term_memory import LongTermMemoryStorageError
+
+if TYPE_CHECKING:
+    from cyber_town.application.long_term_memory import (
+        LongTermMemoryRetriever,
+        LongTermMemoryService,
+    )
 
 LOGGER = logging.getLogger("cyber_town.dialogue")
 SAFE_FALLBACK_REPLY = "Nia pauses, keeping the conversation within safe boundaries."
@@ -165,6 +176,7 @@ class _IdempotencyEntry:
     result: _DialogueResult | None
     expires_at: float
     waiters: int = 0
+    long_term_revision: int = 0
 
 
 class DialogueService:
@@ -178,17 +190,22 @@ class DialogueService:
         config: DialogueExecutionConfig,
         session_store: ShortTermSessionStore | None = None,
         clock: Callable[[], float] | None = None,
+        long_term_memory: LongTermMemoryService | None = None,
+        long_term_retriever: LongTermMemoryRetriever | None = None,
     ) -> None:
         if any(key != persona.npc_id for key, persona in personas.items()):
             raise ValueError("Persona mapping keys must match persona npc_id values")
         self._personas = dict(personas)
         self._provider = provider
         self._config = config
+        self._long_term_memory = long_term_memory
+        self._long_term_retriever = long_term_retriever
         self._clock = clock or time.monotonic
         self._session_store = session_store or ShortTermSessionStore(clock=self._clock)
         self._provider_slots = asyncio.Semaphore(config.max_concurrency)
         self._idempotency_lock = asyncio.Lock()
         self._idempotency: OrderedDict[UUID, _IdempotencyEntry] = OrderedDict()
+        self._long_term_revisions: dict[LongTermMemoryScope, int] = {}
         self._scope_locks: dict[ConversationScope, asyncio.Lock] = {}
         self._scope_waiters: dict[ConversationScope, int] = {}
         self._orphan_tasks: set[asyncio.Task[None]] = set()
@@ -211,7 +228,7 @@ class DialogueService:
             raise error
 
         try:
-            result, from_cache = await self._execute_idempotent(request, persona)
+            result, from_cache = await self._execute_idempotent(request, persona, trace_id=trace_id)
         except DialogueUseCaseError as error:
             self._log_failure(request, trace_id, error, persona_version=persona.version)
             raise
@@ -232,9 +249,12 @@ class DialogueService:
         self,
         request: DialogueRequestV1,
         persona: PersonaDefinition,
+        *,
+        trace_id: UUID,
     ) -> tuple[_DialogueResult, bool]:
         fingerprint = self._fingerprint(request)
         now = self._clock()
+        long_term_scope = LongTermMemoryScope(request.player_id, request.npc_id)
 
         async with self._idempotency_lock:
             self._purge_expired(now)
@@ -250,20 +270,57 @@ class DialogueService:
                     )
                 self._idempotency.move_to_end(request.request_id)
                 if entry.result is not None:
+                    if (
+                        entry.result.provider != "local-memory"
+                        and entry.long_term_revision
+                        != self._long_term_revisions.get(long_term_scope, 0)
+                    ):
+                        raise DialogueUseCaseError(
+                            kind=DialogueFailureKind.CONFLICT,
+                            code=ApiErrorCode.CONFLICT,
+                            public_message="The request conflicts with an existing request.",
+                            retryable=False,
+                        )
                     return entry.result, True
                 if entry.task is None:
                     raise RuntimeError("Invalid in-memory idempotency entry")
                 task = entry.task
                 entry.waiters += 1
             else:
+                durable_replay = False
+                if self._long_term_memory is not None:
+                    try:
+                        durable_fingerprint = self._long_term_memory.operation_fingerprint(
+                            request.request_id
+                        )
+                    except LongTermMemoryStorageError:
+                        raise self._scope_unavailable(
+                            "The dialogue service is temporarily unavailable."
+                        ) from None
+                    if durable_fingerprint is not None and durable_fingerprint != fingerprint:
+                        raise DialogueUseCaseError(
+                            kind=DialogueFailureKind.CONFLICT,
+                            code=ApiErrorCode.CONFLICT,
+                            public_message="The request conflicts with an existing request.",
+                            retryable=False,
+                        )
+                    durable_replay = durable_fingerprint is not None
                 self._make_capacity()
-                task = asyncio.create_task(self._generate(request, persona))
+                task = asyncio.create_task(
+                    self._generate(
+                        request,
+                        persona,
+                        trace_id=trace_id,
+                        durable_replay=durable_replay,
+                    )
+                )
                 entry = _IdempotencyEntry(
                     fingerprint=fingerprint,
                     task=task,
                     result=None,
                     expires_at=now + self._config.idempotency_ttl_seconds,
                     waiters=1,
+                    long_term_revision=self._long_term_revisions.get(long_term_scope, 0),
                 )
                 self._idempotency[request.request_id] = entry
 
@@ -282,6 +339,7 @@ class DialogueService:
                 current.waiters -= 1
                 current.task = None
                 current.result = result
+                current.long_term_revision = self._long_term_revisions.get(long_term_scope, 0)
                 current.expires_at = self._clock() + self._config.idempotency_ttl_seconds
                 self._idempotency.move_to_end(request.request_id)
             elif current is not None and current.result is not None:
@@ -373,7 +431,46 @@ class DialogueService:
         self,
         request: DialogueRequestV1,
         persona: PersonaDefinition,
+        *,
+        trace_id: UUID,
+        durable_replay: bool,
     ) -> _DialogueResult:
+        if self._long_term_memory is not None:
+            try:
+                superseded_value = self._long_term_memory.superseded_fact_value(request)
+                local_response = self._long_term_memory.execute(request, trace_id=trace_id)
+            except LongTermMemoryStorageError:
+                raise self._scope_unavailable(
+                    "The dialogue service is temporarily unavailable."
+                ) from None
+            except ValueError:
+                raise DialogueUseCaseError(
+                    kind=DialogueFailureKind.VALIDATION_ERROR,
+                    code=ApiErrorCode.VALIDATION_ERROR,
+                    public_message="The memory command does not match its approved format.",
+                    retryable=False,
+                ) from None
+            if local_response is not None:
+                if superseded_value is not None and not durable_replay:
+                    long_term_scope = LongTermMemoryScope(request.player_id, request.npc_id)
+                    self._long_term_revisions[long_term_scope] = (
+                        self._long_term_revisions.get(long_term_scope, 0) + 1
+                    )
+                    self._session_store.discard_fact_value(
+                        request.player_id,
+                        request.npc_id,
+                        superseded_value,
+                    )
+                return _DialogueResult(
+                    reply=local_response.reply,
+                    status=local_response.status,
+                    provider=local_response.provider,
+                    provider_model=self._config.model,
+                    persona_version=persona.version,
+                    usage=ProviderUsage(),
+                    latency_ms=0,
+                )
+
         try:
             select_history_messages(persona.system_prompt, request.message, ())
         except ContextBudgetError as error:
@@ -404,16 +501,63 @@ class DialogueService:
                 ) from None
             reserved = True
 
-            history_messages = select_history_messages(
-                persona.system_prompt, request.message, history
+            long_term_facts: tuple[ProviderLongTermFact, ...] = ()
+            long_term_scope = LongTermMemoryScope(request.player_id, request.npc_id)
+            long_term_revision = self._long_term_revisions.get(long_term_scope, 0)
+            if self._long_term_retriever is not None:
+                try:
+                    long_term_facts = self._long_term_retriever.retrieve(
+                        long_term_scope, request.message
+                    )
+                except LongTermMemoryStorageError:
+                    raise self._scope_unavailable(
+                        "The dialogue service is temporarily unavailable."
+                    ) from None
+                if long_term_facts:
+                    history = tuple(
+                        turn
+                        for turn in history
+                        if not self._long_term_retriever.is_recall_request(turn.user_message)
+                    )
+            selected_context = select_context_messages(
+                persona.system_prompt, request.message, history, long_term_facts
             )
-            if not history_messages and self._requires_conversation_history(request.message):
+            needs_memory = self._requires_conversation_history(request.message) or (
+                self._long_term_retriever is not None
+                and self._long_term_retriever.is_recall_request(request.message)
+            )
+            try:
+                suppressed_memory = (
+                    self._long_term_retriever is not None
+                    and not selected_context.long_term_facts
+                    and self._long_term_retriever.is_suppressed_recall(
+                        long_term_scope, request.message
+                    )
+                )
+            except LongTermMemoryStorageError:
+                raise self._scope_unavailable(
+                    "The dialogue service is temporarily unavailable."
+                ) from None
+            if suppressed_memory or (
+                not selected_context.history_messages
+                and not selected_context.long_term_facts
+                and needs_memory
+            ):
                 result = self._empty_history_fallback(request.message, persona)
             else:
-                result = await self._complete_provider(request, persona, history_messages)
+                result = await self._complete_provider(
+                    request,
+                    persona,
+                    selected_context.history_messages,
+                    selected_context.long_term_facts,
+                )
 
             if result.status is DialogueStatus.COMPLETED:
                 async with self._idempotency_lock:
+                    if self._long_term_revisions.get(long_term_scope, 0) != long_term_revision:
+                        self._session_store.abort(scope)
+                        reserved = False
+                        raise self._scope_unavailable("The dialogue session changed; please retry.")
                     entry = self._idempotency.get(request.request_id)
                     if (
                         entry is None
@@ -446,6 +590,7 @@ class DialogueService:
         request: DialogueRequestV1,
         persona: PersonaDefinition,
         history_messages: tuple[ProviderHistoryMessage, ...],
+        long_term_facts: tuple[ProviderLongTermFact, ...],
     ) -> _DialogueResult:
         provider_request = ProviderRequest(
             system_prompt=persona.system_prompt,
@@ -457,6 +602,7 @@ class DialogueService:
             thinking_enabled=False,
             stream=False,
             history_messages=history_messages,
+            long_term_facts=long_term_facts,
         )
         started = self._clock()
 

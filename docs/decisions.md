@@ -14,10 +14,10 @@
 
 ## ADR-003：默认候选架构为 Godot + FastAPI + SQLite + Provider Adapter
 
-- 状态：建议，待 roadmap/任务卡确认。
+- 状态：已锁定（roadmap 与 F-005 任务卡已批准，2026-08-25）。
 - 选择：Godot 管交互；FastAPI 管服务编排；SQLite 管结构化事实；LLM 置于可替换 provider adapter 后。
 - 备选：HelloAgents 作为学习对照；向量库和 WebSocket 只按明确需求升级。
-- 后果：首实现需先定义领域契约、错误语义、迁移与测试，不得从游戏端直接调用模型。
+- 后果：F-005 已实现受限 SQLite schema/repository、显式事实命令、确定性检索及 fake-only 测试；游戏端仍不得直接调用模型。
 
 ## ADR-004：LLM 不直接决定或写入持久化游戏状态
 
@@ -101,3 +101,14 @@
 - 一致性：同 scope 请求串行、最多等待 2 秒；跨 scope 服从 provider 并发上限 2。成功 replay/并发只写一次；degraded、失败、取消、孤儿和晚到结果不生成伪记忆。当前消息超预算映射 422；最小上下文、容量或 scope 等待失败映射可重试 503。
 - 验证：统一自动化与 CI 永久 fake-only，保持公开 Dialogue v1/Schema 与原有 Godot 场景不变；真实本地对话 loopback 从 8 增加到 10 个场景，新增同 scope 连续三轮和失败后手动 Retry 再继续对话。
 - 真实边界：Step 5 最多 8 次/USD 0.035、Step 7 最多 4 次/USD 0.015，均须独立授权，合计不超过 12 次/USD 0.05；独立 QA、用户 UAT、Git 交付及 R-05 不自动执行。
+
+## ADR-015：F-005 标准库 SQLite 长期事实、确定性检索与跨进程调用预算
+
+- 状态：已锁定（F-005 / Step 5 离线与专项授权真实评估完成，2026-08-25）。
+- 真相源：Python 3.12 标准库 `sqlite3` 是唯一结构化长期事实存储；正式业务路径为 `data/cyber-town.sqlite3`，当前仍未创建。自动化只使用 pytest 临时路径，专项真实评估使用 Git 忽略的独立验收 SQLite 与调用台账。禁止 SQLAlchemy、FTS、embedding、Qdrant 和第二状态真相源。
+- 事实与隔离：长期 scope 为 `(player_id, npc_id)`，只接受四类已批准低敏感事实和冻结中英文显式记住/永久记住/忘记命令；默认 TTL 30 天、每 scope 64、全局 4096、一次召回 4 条。更新保持 memory_id 并递增 version，遗忘清空正文，事务与 request 指纹幂等使用 `BEGIN IMMEDIATE` 和 2 秒 lock timeout。
+- Provider：Nia 为唯一最高优先级 system；先按精确 key/固定别名和确定性 metadata 排序，再将长期事实作为 `UNTRUSTED_LONG_TERM_MEMORY` user 数据置于完整短期历史之前。总 UTF-8 工程预算 8192，长期最多 2048，回复预留 256；该估算不是官方真实 token。
+- 评估：固定 72 项 fake-only golden set 当前 precision/recall 均为 1.00，跨 scope、遗忘、过期、旧值复活和空结果虚构均为 0；现有 Godot 场景通过 loopback FastAPI、隔离 SQLite 和 FakeProvider 验证完整记住/召回/遗忘流程，不改变公开 Dialogue v1、Schema、Godot 场景、依赖或 CI。
+- 真实调用治理：独立 SQLite 台账固定 `data/acceptance-ledgers/f-005.sqlite3`，只保存授权标识、Step、模型、状态、token、整数 micro-USD 与时间戳；Step 5 ≤8 次/USD 0.035，Step 7 ≤4 次/USD 0.015，总计 ≤12 次/USD 0.05。每次先原子预留，再由计量 provider 于 completion 返回后立即落 usage；reserved/unknown、预算异常或台账损坏 fail-closed。
+- 真实专项结果：用户独立授权后实际调用 7/8 次，官方 usage 为 1244 输入 token、106 输出 token；逐次向上取整的保守台账费用为 690 micro-USD / USD 0.000690，所有 reservation 均已结算。跨 conversation/重建恢复、隔离、更新、四类事实、persona、遗忘与空结果均通过。
+- 后果：F-005 Step 5 已完成；独立 QA、用户 UAT、后续真实调用、Git 交付和 R-06 不自动开始，必须分别获得对应授权。
