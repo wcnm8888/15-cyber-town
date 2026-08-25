@@ -39,6 +39,21 @@ LONG_TERM_MEMORY_ALLOWED_FACT_KEYS: tuple[str, str, str, str] = (
 LONG_TERM_MEMORY_DATABASE_PATH = Path("data/cyber-town.sqlite3")
 LONG_TERM_MEMORY_UAT_DATABASE_ROOT = Path("data/uat/f-005")
 LONG_TERM_MEMORY_ACCEPTANCE_LEDGER_PATH = Path("data/acceptance-ledgers/f-005.sqlite3")
+RELATIONSHIP_SCOPE_FIELDS: tuple[str, str] = ("player_id", "npc_id")
+RELATIONSHIP_RULE_VERSION = "f-006-v1"
+RELATIONSHIP_INITIAL_SCORE = 20
+RELATIONSHIP_MIN_SCORE = 0
+RELATIONSHIP_MAX_SCORE = 100
+RELATIONSHIP_MAX_DELTA = 2
+RELATIONSHIP_MIN_CONFIDENCE = 80
+RELATIONSHIP_MAX_EFFECTIVE_CHANGES_PER_UTC_DAY = 1
+RELATIONSHIP_ALLOWED_CATEGORIES: tuple[str, str, str, str, str] = (
+    "supportive",
+    "friendly",
+    "neutral",
+    "dismissive",
+    "hostile",
+)
 
 
 class Settings(BaseSettings):
@@ -97,6 +112,29 @@ class Settings(BaseSettings):
     long_term_memory_uat_database_root: Path = LONG_TERM_MEMORY_UAT_DATABASE_ROOT
     long_term_memory_acceptance_ledger_path: Path = LONG_TERM_MEMORY_ACCEPTANCE_LEDGER_PATH
 
+    relationship_scope_fields: tuple[str, str] = RELATIONSHIP_SCOPE_FIELDS
+    relationship_rule_version: str = Field(default=RELATIONSHIP_RULE_VERSION, min_length=1)
+    relationship_initial_score: int = Field(
+        default=RELATIONSHIP_INITIAL_SCORE,
+        ge=RELATIONSHIP_MIN_SCORE,
+        le=RELATIONSHIP_MAX_SCORE,
+    )
+    relationship_min_score: int = Field(default=RELATIONSHIP_MIN_SCORE, ge=0, le=100)
+    relationship_max_score: int = Field(default=RELATIONSHIP_MAX_SCORE, ge=0, le=100)
+    relationship_max_delta: int = Field(default=RELATIONSHIP_MAX_DELTA, gt=0, le=100)
+    relationship_min_confidence: int = Field(
+        default=RELATIONSHIP_MIN_CONFIDENCE,
+        ge=0,
+        le=100,
+    )
+    relationship_max_effective_changes_per_utc_day: int = Field(
+        default=RELATIONSHIP_MAX_EFFECTIVE_CHANGES_PER_UTC_DAY,
+        gt=0,
+    )
+    relationship_allowed_categories: tuple[str, str, str, str, str] = (
+        RELATIONSHIP_ALLOWED_CATEGORIES
+    )
+
     def __init__(self, **values: Any) -> None:
         if os.environ.get("CYBER_TOWN_DISABLE_DOTENV") == "1":
             values["_env_file"] = None
@@ -148,6 +186,36 @@ class Settings(BaseSettings):
 
         if isinstance(value, (bool, float)):
             raise ValueError("Long-term memory policy values must be integers")
+        return value
+
+    @field_validator(
+        "relationship_initial_score",
+        "relationship_min_score",
+        "relationship_max_score",
+        "relationship_max_delta",
+        "relationship_min_confidence",
+        "relationship_max_effective_changes_per_utc_day",
+        mode="before",
+    )
+    @classmethod
+    def reject_noninteger_relationship_policy_values(cls, value: object) -> object:
+        """Keep F-006 score policy free from bool or float coercion."""
+
+        if isinstance(value, (bool, float)):
+            raise ValueError("Relationship policy values must be integers")
+        return value
+
+    @field_validator(
+        "relationship_scope_fields",
+        "relationship_allowed_categories",
+        mode="before",
+    )
+    @classmethod
+    def reject_mutable_relationship_policy_sequences(cls, value: object) -> object:
+        """Require immutable tuples for frozen F-006 policy declarations."""
+
+        if not isinstance(value, tuple):
+            raise ValueError("Relationship policy sequences must be immutable tuples")
         return value
 
     @field_validator(
@@ -272,6 +340,45 @@ class Settings(BaseSettings):
         for name, actual, expected in long_term_frozen_values:
             if actual != expected:
                 raise ValueError(f"{name} must remain {expected} for F-005")
+
+        relationship_frozen_values: tuple[tuple[str, object, object], ...] = (
+            (
+                "RELATIONSHIP_SCOPE_FIELDS",
+                self.relationship_scope_fields,
+                RELATIONSHIP_SCOPE_FIELDS,
+            ),
+            (
+                "RELATIONSHIP_RULE_VERSION",
+                self.relationship_rule_version,
+                RELATIONSHIP_RULE_VERSION,
+            ),
+            (
+                "RELATIONSHIP_INITIAL_SCORE",
+                self.relationship_initial_score,
+                RELATIONSHIP_INITIAL_SCORE,
+            ),
+            ("RELATIONSHIP_MIN_SCORE", self.relationship_min_score, RELATIONSHIP_MIN_SCORE),
+            ("RELATIONSHIP_MAX_SCORE", self.relationship_max_score, RELATIONSHIP_MAX_SCORE),
+            ("RELATIONSHIP_MAX_DELTA", self.relationship_max_delta, RELATIONSHIP_MAX_DELTA),
+            (
+                "RELATIONSHIP_MIN_CONFIDENCE",
+                self.relationship_min_confidence,
+                RELATIONSHIP_MIN_CONFIDENCE,
+            ),
+            (
+                "RELATIONSHIP_MAX_EFFECTIVE_CHANGES_PER_UTC_DAY",
+                self.relationship_max_effective_changes_per_utc_day,
+                RELATIONSHIP_MAX_EFFECTIVE_CHANGES_PER_UTC_DAY,
+            ),
+            (
+                "RELATIONSHIP_ALLOWED_CATEGORIES",
+                self.relationship_allowed_categories,
+                RELATIONSHIP_ALLOWED_CATEGORIES,
+            ),
+        )
+        for name, actual, expected in relationship_frozen_values:
+            if actual != expected:
+                raise ValueError(f"{name} must remain {expected} for F-006")
 
         self._validate_long_term_memory_paths()
 

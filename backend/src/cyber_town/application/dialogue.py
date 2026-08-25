@@ -46,12 +46,17 @@ from cyber_town.contracts.v1 import (
 from cyber_town.domain.long_term_memory import LongTermMemoryScope
 from cyber_town.domain.persona import PersonaDefinition
 from cyber_town.infrastructure.persistence.sqlite_long_term_memory import LongTermMemoryStorageError
+from cyber_town.infrastructure.persistence.sqlite_relationship import (
+    RelationshipConflictError,
+    RelationshipStorageError,
+)
 
 if TYPE_CHECKING:
     from cyber_town.application.long_term_memory import (
         LongTermMemoryRetriever,
         LongTermMemoryService,
     )
+    from cyber_town.application.relationship import RelationshipService
 
 LOGGER = logging.getLogger("cyber_town.dialogue")
 SAFE_FALLBACK_REPLY = "Nia pauses, keeping the conversation within safe boundaries."
@@ -167,6 +172,7 @@ class _DialogueResult:
     persona_version: str
     usage: ProviderUsage
     latency_ms: int
+    relationship_suggestion: object = None
 
 
 @dataclass(slots=True)
@@ -192,6 +198,7 @@ class DialogueService:
         clock: Callable[[], float] | None = None,
         long_term_memory: LongTermMemoryService | None = None,
         long_term_retriever: LongTermMemoryRetriever | None = None,
+        relationship_service: RelationshipService | None = None,
     ) -> None:
         if any(key != persona.npc_id for key, persona in personas.items()):
             raise ValueError("Persona mapping keys must match persona npc_id values")
@@ -200,6 +207,7 @@ class DialogueService:
         self._config = config
         self._long_term_memory = long_term_memory
         self._long_term_retriever = long_term_retriever
+        self._relationship_service = relationship_service
         self._clock = clock or time.monotonic
         self._session_store = session_store or ShortTermSessionStore(clock=self._clock)
         self._provider_slots = asyncio.Semaphore(config.max_concurrency)
@@ -311,6 +319,7 @@ class DialogueService:
                         request,
                         persona,
                         trace_id=trace_id,
+                        request_fingerprint=fingerprint,
                         durable_replay=durable_replay,
                     )
                 )
@@ -433,6 +442,7 @@ class DialogueService:
         persona: PersonaDefinition,
         *,
         trace_id: UUID,
+        request_fingerprint: str,
         durable_replay: bool,
     ) -> _DialogueResult:
         if self._long_term_memory is not None:
@@ -567,6 +577,32 @@ class DialogueService:
                         self._session_store.abort(scope)
                         reserved = False
                         raise asyncio.CancelledError
+                    if self._relationship_service is not None:
+                        try:
+                            self._relationship_service.record_completed_dialogue(
+                                player_id=request.player_id,
+                                npc_id=request.npc_id,
+                                request_id=request.request_id,
+                                request_fingerprint=request_fingerprint,
+                                trace_id=trace_id,
+                                conversation_id=request.conversation_id,
+                                raw_suggestion=result.relationship_suggestion,
+                            )
+                        except RelationshipConflictError:
+                            self._session_store.abort(scope)
+                            reserved = False
+                            raise DialogueUseCaseError(
+                                kind=DialogueFailureKind.CONFLICT,
+                                code=ApiErrorCode.CONFLICT,
+                                public_message="The request conflicts with an existing request.",
+                                retryable=False,
+                            ) from None
+                        except RelationshipStorageError:
+                            self._session_store.abort(scope)
+                            reserved = False
+                            raise self._scope_unavailable(
+                                "The dialogue service is temporarily unavailable."
+                            ) from None
                     self._session_store.commit(
                         scope, ConversationTurn(request.message, result.reply)
                     )
@@ -732,7 +768,14 @@ class DialogueService:
             persona_version=persona.version,
             usage=completion.usage,
             latency_ms=latency_ms,
+            relationship_suggestion=completion.relationship_suggestion,
         )
+
+    @property
+    def relationship_service(self) -> RelationshipService | None:
+        """Expose the optional read capability without expanding Dialogue v1."""
+
+        return self._relationship_service
 
     @staticmethod
     def _invalid_provider_response() -> DialogueUseCaseError:

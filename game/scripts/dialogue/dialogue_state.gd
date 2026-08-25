@@ -146,6 +146,7 @@ func _validate_success(
 		"state": SUCCESS,
 		"reply": reply,
 		"trace_id": String(payload["trace_id"]),
+		"status": String(payload["status"]),
 		"retryable": false,
 	}
 
@@ -181,6 +182,7 @@ func _validate_error(
 		"state": mapping[2],
 		"reply": "",
 		"trace_id": String(payload["trace_id"]),
+		"status": "",
 		"retryable": bool(mapping[1]),
 	}
 
@@ -236,5 +238,6 @@ func _result(state: StringName, retryable: bool) -> Dictionary:
 		"state": state,
 		"reply": "",
 		"trace_id": "",
+		"status": "",
 		"retryable": retryable,
 	}

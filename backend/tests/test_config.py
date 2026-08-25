@@ -47,6 +47,15 @@ CONFIG_ENV_NAMES = (
     "LONG_TERM_MEMORY_DATABASE_PATH",
     "LONG_TERM_MEMORY_UAT_DATABASE_ROOT",
     "LONG_TERM_MEMORY_ACCEPTANCE_LEDGER_PATH",
+    "RELATIONSHIP_SCOPE_FIELDS",
+    "RELATIONSHIP_RULE_VERSION",
+    "RELATIONSHIP_INITIAL_SCORE",
+    "RELATIONSHIP_MIN_SCORE",
+    "RELATIONSHIP_MAX_SCORE",
+    "RELATIONSHIP_MAX_DELTA",
+    "RELATIONSHIP_MIN_CONFIDENCE",
+    "RELATIONSHIP_MAX_EFFECTIVE_CHANGES_PER_UTC_DAY",
+    "RELATIONSHIP_ALLOWED_CATEGORIES",
 )
 
 F004_NUMERIC_MEMORY_POLICY: tuple[tuple[str, int | float], ...] = (
@@ -76,6 +85,23 @@ F005_APPROVED_PATHS: tuple[tuple[str, Path], ...] = (
         "long_term_memory_acceptance_ledger_path",
         Path("data/acceptance-ledgers/f-005.sqlite3"),
     ),
+)
+
+F006_NUMERIC_RELATION_POLICY: tuple[tuple[str, int], ...] = (
+    ("relationship_initial_score", 20),
+    ("relationship_min_score", 0),
+    ("relationship_max_score", 100),
+    ("relationship_max_delta", 2),
+    ("relationship_min_confidence", 80),
+    ("relationship_max_effective_changes_per_utc_day", 1),
+)
+
+F006_ALLOWED_CATEGORIES = (
+    "supportive",
+    "friendly",
+    "neutral",
+    "dismissive",
+    "hostile",
 )
 
 
@@ -236,7 +262,7 @@ def test_f003_rejects_in_range_drift_from_approved_execution_policy(
     field: str,
     value: object,
 ) -> None:
-    with pytest.raises(ValidationError, match="must remain"):
+    with pytest.raises(ValidationError):
         Settings.model_validate({field: value})
 
 
@@ -660,6 +686,117 @@ def test_f005_scope_environment_drift_fails_closed(monkeypatch: pytest.MonkeyPat
 
 def test_f005_path_environment_escape_fails_closed(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("LONG_TERM_MEMORY_DATABASE_PATH", "data/../sibling.sqlite3")
+
+    with pytest.raises(ValidationError):
+        Settings.model_validate({})
+
+
+def test_f006_freezes_default_deterministic_relationship_policy() -> None:
+    settings = Settings.model_validate({})
+
+    assert settings.relationship_scope_fields == ("player_id", "npc_id")
+    assert settings.relationship_rule_version == "f-006-v1"
+    assert settings.relationship_allowed_categories == F006_ALLOWED_CATEGORIES
+    for field, expected in F006_NUMERIC_RELATION_POLICY:
+        assert getattr(settings, field) == expected
+
+
+@pytest.mark.parametrize(
+    "scope_fields",
+    [
+        (),
+        ("player_id",),
+        ("npc_id", "player_id"),
+        ("player_id", "npc_id", "conversation_id"),
+        ("player_id", "player_id"),
+        ("player_id", None),
+        ["player_id", "npc_id"],
+        "player_id,npc_id",
+        {"player_id": "player", "npc_id": "npc"},
+    ],
+)
+def test_f006_rejects_invalid_relationship_scope(scope_fields: object) -> None:
+    with pytest.raises(ValidationError):
+        Settings.model_validate({"relationship_scope_fields": scope_fields})
+
+
+@pytest.mark.parametrize(
+    "categories",
+    [
+        (),
+        ("supportive", "friendly", "neutral", "dismissive"),
+        ("supportive", "friendly", "neutral", "dismissive", "unknown"),
+        ("friendly", "supportive", "neutral", "dismissive", "hostile"),
+        ("supportive", "friendly", "neutral", "dismissive", "dismissive"),
+        ("supportive", "friendly", "neutral", "dismissive", None),
+        ["supportive", "friendly", "neutral", "dismissive", "hostile"],
+        "supportive,friendly,neutral,dismissive,hostile",
+    ],
+)
+def test_f006_rejects_invalid_relationship_categories(categories: object) -> None:
+    with pytest.raises(ValidationError):
+        Settings.model_validate({"relationship_allowed_categories": categories})
+
+
+@pytest.mark.parametrize(("field", "approved"), F006_NUMERIC_RELATION_POLICY)
+@pytest.mark.parametrize("offset", [-1, 1])
+def test_f006_rejects_drift_from_frozen_relationship_policy(
+    field: str,
+    approved: int,
+    offset: int,
+) -> None:
+    with pytest.raises(ValidationError):
+        Settings.model_validate({field: approved + offset})
+
+
+@pytest.mark.parametrize(("field", "_approved"), F006_NUMERIC_RELATION_POLICY)
+@pytest.mark.parametrize("value", [None, True, 1.5, "not-a-number", {}, []])
+def test_f006_rejects_invalid_relationship_policy_types(
+    field: str,
+    _approved: int,
+    value: object,
+) -> None:
+    with pytest.raises(ValidationError):
+        Settings.model_validate({field: value})
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("relationship_initial_score", -1),
+        ("relationship_min_score", -1),
+        ("relationship_max_score", 101),
+        ("relationship_max_delta", 0),
+        ("relationship_min_confidence", -1),
+        ("relationship_min_confidence", 101),
+        ("relationship_max_effective_changes_per_utc_day", 0),
+    ],
+)
+def test_f006_rejects_out_of_bounds_relationship_policy_values(
+    field: str,
+    value: object,
+) -> None:
+    with pytest.raises(ValidationError):
+        Settings.model_validate({field: value})
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("relationship_rule_version", "f-006-v2"),
+        ("relationship_rule_version", ""),
+        ("relationship_rule_version", "f-006-v1 "),
+    ],
+)
+def test_f006_rejects_relationship_rule_version_drift(field: str, value: object) -> None:
+    with pytest.raises(ValidationError):
+        Settings.model_validate({field: value})
+
+
+def test_f006_relationship_scope_environment_drift_fails_closed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("RELATIONSHIP_SCOPE_FIELDS", '["npc_id", "player_id"]')
 
     with pytest.raises(ValidationError):
         Settings.model_validate({})

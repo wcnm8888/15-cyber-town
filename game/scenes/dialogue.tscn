@@ -2,6 +2,7 @@
 
 [ext_resource type="Script" path="res://scripts/dialogue/dialogue_ui.gd" id="1_ui"]
 [ext_resource type="Script" path="res://scripts/dialogue/dialogue_client.gd" id="2_client"]
+[ext_resource type="Script" path="res://scripts/dialogue/relationship_client.gd" id="3_relationship"]
 
 [node name="Dialogue" type="Control"]
 layout_mode = 3
@@ -23,7 +24,7 @@ grow_vertical = 2
 [node name="VBoxContainer" type="VBoxContainer" parent="CenterContainer"]
 custom_minimum_size = Vector2(440, 0)
 layout_mode = 2
-theme_override_constants/separation = 10
+theme_override_constants/separation = 4
 
 [node name="TitleLabel" type="Label" parent="CenterContainer/VBoxContainer"]
 layout_mode = 2
@@ -42,7 +43,7 @@ layout_mode = 2
 autowrap_mode = 2
 
 [node name="MessageInput" type="TextEdit" parent="CenterContainer/VBoxContainer"]
-custom_minimum_size = Vector2(0, 96)
+custom_minimum_size = Vector2(0, 64)
 layout_mode = 2
 placeholder_text = "Type your message…"
 wrap_mode = 1
@@ -73,7 +74,17 @@ visible = false
 layout_mode = 2
 autowrap_mode = 2
 
+[node name="RelationshipLabel" type="Label" parent="CenterContainer/VBoxContainer"]
+layout_mode = 2
+autowrap_mode = 2
+text = "Relationship: loading…"
+
 [node name="DialogueClient" type="Node" parent="."]
 script = ExtResource("2_client")
 
 [node name="HTTPRequest" type="HTTPRequest" parent="DialogueClient"]
+
+[node name="RelationshipClient" type="Node" parent="."]
+script = ExtResource("3_relationship")
+
+[node name="HTTPRequest" type="HTTPRequest" parent="RelationshipClient"]

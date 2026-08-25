@@ -100,22 +100,27 @@ def test_initialize_creates_only_versioned_schema_in_isolated_database(tmp_path:
     with sqlite3.connect(database_path) as connection:
         tables = {
             row[0]
-            for row in connection.execute("SELECT name FROM sqlite_master WHERE type = 'table'")
+            for row in connection.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'"
+            )
         }
-        migration = connection.execute(
-            "SELECT version, name, checksum FROM schema_migrations"
-        ).fetchone()
+        migrations = connection.execute(
+            "SELECT version, name, checksum FROM schema_migrations ORDER BY version"
+        ).fetchall()
 
     assert tables == {
         "schema_migrations",
         "long_term_memories",
         "memory_operations",
         "memory_events",
+        "relationship_states",
+        "relationship_events",
     }
-    assert migration is not None
-    assert migration[0] == 1
-    assert migration[1] == "0001_long_term_memory.sql"
-    assert len(migration[2]) == 64
+    assert [(version, name) for version, name, _ in migrations] == [
+        (1, "0001_long_term_memory.sql"),
+        (2, "0002_relationship_state.sql"),
+    ]
+    assert all(len(checksum) == 64 for _, _, checksum in migrations)
 
 
 def test_schema_contains_required_columns_and_no_raw_conversation_columns(
@@ -177,7 +182,7 @@ def test_initialize_is_idempotent_and_preserves_existing_records(
 
     assert repository.get(record.scope, record.memory_id) == record
     with sqlite3.connect(repository.database_path) as connection:
-        assert connection.execute("SELECT COUNT(*) FROM schema_migrations").fetchone() == (1,)
+        assert connection.execute("SELECT COUNT(*) FROM schema_migrations").fetchone() == (2,)
 
 
 def test_initialize_rejects_tampered_migration_without_recreating_database(

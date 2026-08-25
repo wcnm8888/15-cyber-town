@@ -12,6 +12,7 @@ import threading
 import time
 from collections.abc import Iterator, Sequence
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from uuid import uuid4
 
 import uvicorn
@@ -26,8 +27,10 @@ from cyber_town.application.provider import (
     ProviderUnavailableError,
     ProviderUsage,
 )
+from cyber_town.application.relationship import RelationshipService
 from cyber_town.domain.persona import load_bundled_persona
 from cyber_town.infrastructure.llm.fake import FakeProvider
+from cyber_town.infrastructure.persistence.sqlite_relationship import SqliteRelationshipRepository
 
 HOST = "127.0.0.1"
 PORT = 8000
@@ -61,6 +64,7 @@ def _completion(content: object = "Nia offers a synthetic offline reply.") -> Pr
         provider="fake",
         model="deepseek-v4-flash",
         usage=ProviderUsage(prompt_tokens=4, completion_tokens=3),
+        relationship_suggestion={"category": "friendly", "confidence": 80},
     )
 
 
@@ -135,25 +139,36 @@ def _assert_memory_scenario(
             raise RuntimeError("multi_turn_recovery manual retry changed its user message")
 
 
+@contextlib.contextmanager
 def _fake_application(
     outcomes: Sequence[ProviderCompletion | Exception],
-) -> tuple[FastAPI, FakeProvider]:
-    provider = FakeProvider(outcomes)
-    persona = load_bundled_persona("nia_v1.json")
-    service = DialogueService(
-        personas={persona.npc_id: persona},
-        provider=provider,
-        config=DialogueExecutionConfig(
-            model="deepseek-v4-flash",
-            temperature=0.6,
-            max_tokens=256,
-            timeout_seconds=12.0,
-            max_concurrency=2,
-            idempotency_ttl_seconds=600.0,
-            idempotency_max_entries=256,
-        ),
-    )
-    return create_app(service), provider
+) -> Iterator[tuple[FastAPI, FakeProvider]]:
+    """Build an isolated fake-only dialogue and relationship loopback fixture."""
+
+    with TemporaryDirectory(prefix="cyber-town-f006-") as temporary_directory:
+        root = Path(temporary_directory)
+        repository = SqliteRelationshipRepository(
+            database_path=root / "isolated.sqlite3",
+            allowed_root=root,
+        )
+        repository.initialize()
+        provider = FakeProvider(outcomes)
+        persona = load_bundled_persona("nia_v1.json")
+        service = DialogueService(
+            personas={persona.npc_id: persona},
+            provider=provider,
+            config=DialogueExecutionConfig(
+                model="deepseek-v4-flash",
+                temperature=0.6,
+                max_tokens=256,
+                timeout_seconds=12.0,
+                max_concurrency=2,
+                idempotency_ttl_seconds=600.0,
+                idempotency_max_entries=256,
+            ),
+            relationship_service=RelationshipService(repository=repository),
+        )
+        yield create_app(service), provider
 
 
 def _malformed_application(mode: str) -> tuple[FastAPI, dict[str, int]]:
@@ -255,16 +270,16 @@ def run(godot: Path) -> None:
         ("invalid_recovery", [_completion(None), _completion()], 2),
     )
     for scenario, outcomes, expected_calls in (*scenarios, *MEMORY_SCENARIOS):
-        application, provider = _fake_application(outcomes)
-        with _fixture_server(application):
-            _run_godot(godot, scenario)
-        if provider.call_count != expected_calls:
-            raise RuntimeError(
-                f"{scenario} expected {expected_calls} fake provider calls, "
-                f"got {provider.call_count}"
-            )
-        if scenario.startswith("multi_turn"):
-            _assert_memory_scenario(scenario, provider, outcomes)
+        with _fake_application(outcomes) as (application, provider):
+            with _fixture_server(application):
+                _run_godot(godot, scenario)
+            if provider.call_count != expected_calls:
+                raise RuntimeError(
+                    f"{scenario} expected {expected_calls} fake provider calls, "
+                    f"got {provider.call_count}"
+                )
+            if scenario.startswith("multi_turn"):
+                _assert_memory_scenario(scenario, provider, outcomes)
 
     malformed_modes = (
         "wrong_content_type",

@@ -186,13 +186,19 @@ def test_adapter_sends_frozen_non_thinking_non_streaming_request() -> None:
     assert client.completions.calls[0] == {
         "model": "deepseek-v4-flash",
         "messages": [
-            {"role": "system", "content": "Frozen synthetic persona prompt."},
+            {
+                "role": "system",
+                "content": (
+                    "Frozen synthetic persona prompt.\n\n" + deepseek._RELATIONSHIP_JSON_INSTRUCTION
+                ),
+            },
             {"role": "user", "content": "Where is the quiet street?"},
         ],
         "temperature": 0.6,
         "max_tokens": 256,
         "stream": False,
         "timeout": 12.0,
+        "response_format": {"type": "json_object"},
         "extra_body": {"thinking": {"type": "disabled"}},
     }
     assert result == ProviderCompletion(
@@ -242,7 +248,11 @@ def test_adapter_orders_unique_persona_complete_history_and_current_user() -> No
 
     messages = client.completions.calls[0]["messages"]
     assert messages == [
-        {"role": "system", "content": "Frozen synthetic persona prompt."},
+        {
+            "role": "system",
+            "content": "Frozen synthetic persona prompt.\n\n"
+            + deepseek._RELATIONSHIP_JSON_INSTRUCTION,
+        },
         {"role": "user", "content": "First synthetic question"},
         {"role": "assistant", "content": "First synthetic reply"},
         {"role": "user", "content": "Second synthetic question"},
@@ -250,6 +260,31 @@ def test_adapter_orders_unique_persona_complete_history_and_current_user() -> No
         {"role": "user", "content": "Where is the quiet street?"},
     ]
     assert sum(message["role"] == "system" for message in messages) == 1
+
+
+def test_adapter_extracts_only_an_exact_relationship_json_envelope() -> None:
+    provider, _ = adapter(
+        sdk_response(
+            content=(
+                '{"reply":"Nia acknowledges the visit.",'
+                '"relationship":{"category":"friendly","confidence":80}}'
+            )
+        )
+    )
+
+    completion = asyncio.run(provider.complete(REQUEST))
+
+    assert completion.content == "Nia acknowledges the visit."
+    assert completion.relationship_suggestion == {"category": "friendly", "confidence": 80}
+
+
+def test_adapter_keeps_a_malformed_relationship_envelope_as_untrusted_text() -> None:
+    provider, _ = adapter(sdk_response(content='{"reply":"Nia acknowledges the visit."}'))
+
+    completion = asyncio.run(provider.complete(REQUEST))
+
+    assert completion.content == '{"reply":"Nia acknowledges the visit."}'
+    assert completion.relationship_suggestion is None
 
 
 def test_adapter_places_untrusted_long_term_facts_before_complete_short_term_history() -> None:

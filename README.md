@@ -2,7 +2,7 @@
 
 一个用于系统学习 Agent 工程的 AI NPC 赛博小镇项目。目标是在 Godot 场景中让玩家与具备角色、记忆和可审计行为边界的 NPC 交互。
 
-`F-001`、`F-002`、`F-003` 与 `F-004` 已分别通过 PR #1—#4 完成交付和归档；`F-005 长期记忆与检索评估` 的统一交付与归档载体为 PR #5，首个功能 HEAD 的 GitHub Linux `quality` 已通过，最终 CI 与合并事实以 GitHub 为准。固定 Nia 对话已有按 `player_id + npc_id + conversation_id` 隔离的进程内短期记忆，以及按 `player_id + npc_id` 隔离的标准库 SQLite 结构化长期记忆。独立 QA 无未解决发现，用户真实窗口 UAT 已通过，F-005 实际累计 10 次、1744 输入/247 输出 token、USD 0.001098；本地 fake-only 门禁 1095 passed。当前无活动任务，不自动进入 R-06。项目规则与当前事实见 [AGENTS.md](AGENTS.md) 和 [docs/README.md](docs/README.md)。
+`F-001`—`F-005` 已分别通过 PR #1—#5 完成交付和归档；F-005 已合并到当前 `main` / `origin/main` 的 `c9d11b0a3c441a10463ad4522bb226f055f07f35`。固定 Nia 对话已有按 `player_id + npc_id + conversation_id` 隔离的进程内短期记忆，以及按 `player_id + npc_id` 隔离的标准库 SQLite 结构化长期记忆。F-006 已完成 Step 7：低保真关系区在固定 640×400 视口内完整显示 `Reason`，用户 fake-only Godot UAT 和最终本地门禁均通过；等待另行授权 Git 交付。冻结的 Dialogue v1 不变，全程 fake-only，不读取 `.env`、不调用真实模型。项目规则与当前事实见 [AGENTS.md](AGENTS.md) 和 [docs/README.md](docs/README.md)。
 
 当前统一验证命令：`uv run --frozen python scripts/quality.py`。它执行 Git ignore/敏感信息预检、lock、ruff、mypy、schema、Godot 导入与单测、9 个 F-002 健康 loopback、10 个对话 fake loopback、pytest 和最终策略复检；对话场景包含连续多轮与失败后的手动 Retry 恢复。每个质量子进程强制禁用 `.env`、剔除继承的 provider key 并固定 `LLM_PROVIDER=disabled`；对话集成仅使用本地 FastAPI 和 fake provider。需要 Godot 4.7.2，可通过 `CYBER_TOWN_GODOT` 指向 executable；Windows 默认也会检查本项目批准的便携路径。
 

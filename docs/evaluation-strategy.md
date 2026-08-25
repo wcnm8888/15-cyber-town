@@ -49,3 +49,10 @@
 - 用户专项授权的真实 FastAPI → DialogueService → DeepSeek 长期记忆评估已通过：跨 conversation 与重建恢复、跨 player 隔离、更新、四类白名单事实、唯一 Nia persona 优先、遗忘后不复活和空结果不虚构均通过；显式记住/忘记及空结果均零 provider 调用。
 - 官方 usage 已先于各项语义断言落入受 Git 忽略的跨进程台账：7 次请求、1244 prompt tokens、106 completion tokens；按峰值 cache-miss 单价逐次向上取整，保守费用 690 micro-USD / USD 0.000690，无未结算请求。Step 5 真实专项仅使用隔离验收 SQLite；Step 6 旧 fake 测试误创建的正式路径文件已按用户单独授权定向删除，隔离根因已修复，调用台账与验收库均保留。
 - Step 6 首轮独立 QA 的 5 项 P1、3 项 P2 已经失败优先修复并由两名 reviewer 复审为 NO FINDINGS。golden evaluator 现在拒绝纯正例/纯负例、缺失生命周期场景及缺少四类批准 fact keys 的退化数据集；短期 baseline 使用可注入实际检索结果计算，拒绝硬编码假满分。Step 7 用户真实窗口 UAT 已通过：3 次、500 输入/141 输出 token、408 micro-USD / USD 0.000408，pending=0；F-005 累计 10 次、1744 输入/247 输出 token、USD 0.001098。统一交付、最终 CI 与归档事实以 GitHub PR #5 为准。
+
+## F-006 Step 5 fake-only 对抗与性质评估
+
+- 使用纯内存 `RelationshipPolicyEvaluation`，不访问 provider、HTTP、Godot、SQLite、`.env` 或 F-005 台账。固定范围为 101 个分值、5 个分类、4 个置信度边界值（0、79、80、100）和同日冷却状态。
+- 结果：2020 个基础判定与 2020 个冷却判定均满足范围、阶段一致、变化上限、饱和、低置信度、neutral 与 UTC 每日一次有效变化的约束；2 个时区边界案例验证以 UTC 日而非本地日计算冷却；违规数为 0。
+- 24 个非法 suggestion 覆盖非对象、缺失字段、未知分类、bool/float/越界置信度、嵌套类型、`score`、`rule_version`、`delta`、`instruction`、`system` 与提示注入样式字段。全部仅得到 `candidate_invalid / delta 0`，不会改变关系状态。
+- 另以 FakeProvider completion 穿过 DialogueService 和只读关系 GET 回归 3 个操纵 suggestion；正常对话仍完成，关系保持 20 分，并留下 metadata-only 的 inert 事件。这证明输入处理边界，不替代后续独立 QA 或用户窗口 UAT。
