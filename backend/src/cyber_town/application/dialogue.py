@@ -13,8 +13,20 @@ from dataclasses import dataclass
 from enum import StrEnum
 from uuid import UUID
 
+from cyber_town.application.context_budget import (
+    ContextBudgetError,
+    ContextBudgetFailure,
+    select_history_messages,
+)
+from cyber_town.application.memory import (
+    ConversationScope,
+    ConversationTurn,
+    SessionCapacityError,
+    ShortTermSessionStore,
+)
 from cyber_town.application.provider import (
     ProviderCompletion,
+    ProviderHistoryMessage,
     ProviderInvalidResponseError,
     ProviderProtocol,
     ProviderRequest,
@@ -32,6 +44,47 @@ from cyber_town.domain.persona import PersonaDefinition
 
 LOGGER = logging.getLogger("cyber_town.dialogue")
 SAFE_FALLBACK_REPLY = "Nia pauses, keeping the conversation within safe boundaries."
+NO_HISTORY_REPLY_ZH = "当前会话中还没有你先前告诉我的信息\uff0c因此我不知道。"
+NO_HISTORY_REPLY_EN = "You have not told me that in this conversation yet, so I do not know."
+_HISTORY_REFERENCE_MARKERS = (
+    "刚才",
+    "刚刚",
+    "之前",
+    "先前",
+    "此前",
+    "告诉过",
+    "说过",
+    "提过",
+    "记得",
+    "earlier",
+    "before",
+    "previous",
+    "last time",
+    "told you",
+    "tell you",
+    "mentioned",
+    "remember",
+)
+_HISTORY_QUERY_MARKERS = (
+    "?",
+    "\uff1f",
+    "什么",
+    "多少",
+    "哪",
+    "谁",
+    "是否",
+    "有没有",
+    "能否",
+    "吗",
+    "what ",
+    "which ",
+    "who ",
+    "when ",
+    "where ",
+    "do you ",
+    "did i ",
+    "can you ",
+)
 
 
 class DialogueFailureKind(StrEnum):
@@ -39,6 +92,7 @@ class DialogueFailureKind(StrEnum):
 
     NPC_NOT_FOUND = "npc_not_found"
     CONFLICT = "conflict"
+    VALIDATION_ERROR = "validation_error"
     UNSAFE_CONTENT = "unsafe_content"
     PROVIDER_TIMEOUT = "provider_timeout"
     PROVIDER_UNAVAILABLE = "provider_unavailable"
@@ -110,6 +164,7 @@ class _IdempotencyEntry:
     task: asyncio.Task[_DialogueResult] | None
     result: _DialogueResult | None
     expires_at: float
+    waiters: int = 0
 
 
 class DialogueService:
@@ -121,6 +176,7 @@ class DialogueService:
         personas: Mapping[str, PersonaDefinition],
         provider: ProviderProtocol,
         config: DialogueExecutionConfig,
+        session_store: ShortTermSessionStore | None = None,
         clock: Callable[[], float] | None = None,
     ) -> None:
         if any(key != persona.npc_id for key, persona in personas.items()):
@@ -129,9 +185,13 @@ class DialogueService:
         self._provider = provider
         self._config = config
         self._clock = clock or time.monotonic
+        self._session_store = session_store or ShortTermSessionStore(clock=self._clock)
         self._provider_slots = asyncio.Semaphore(config.max_concurrency)
         self._idempotency_lock = asyncio.Lock()
         self._idempotency: OrderedDict[UUID, _IdempotencyEntry] = OrderedDict()
+        self._scope_locks: dict[ConversationScope, asyncio.Lock] = {}
+        self._scope_waiters: dict[ConversationScope, int] = {}
+        self._orphan_tasks: set[asyncio.Task[None]] = set()
 
     async def execute(
         self,
@@ -194,6 +254,7 @@ class DialogueService:
                 if entry.task is None:
                     raise RuntimeError("Invalid in-memory idempotency entry")
                 task = entry.task
+                entry.waiters += 1
             else:
                 self._make_capacity()
                 task = asyncio.create_task(self._generate(request, persona))
@@ -202,12 +263,14 @@ class DialogueService:
                     task=task,
                     result=None,
                     expires_at=now + self._config.idempotency_ttl_seconds,
+                    waiters=1,
                 )
                 self._idempotency[request.request_id] = entry
 
         try:
             result = await asyncio.shield(task)
         except asyncio.CancelledError:
+            await self._detach_cancelled_waiter(request.request_id, task)
             raise
         except Exception:
             await self._remove_failed_entry(request.request_id, task)
@@ -216,12 +279,45 @@ class DialogueService:
         async with self._idempotency_lock:
             current = self._idempotency.get(request.request_id)
             if current is not None and current.task is task:
+                current.waiters -= 1
                 current.task = None
                 current.result = result
                 current.expires_at = self._clock() + self._config.idempotency_ttl_seconds
                 self._idempotency.move_to_end(request.request_id)
+            elif current is not None and current.result is not None:
+                current.waiters = max(0, current.waiters - 1)
 
         return result, from_cache
+
+    async def _detach_cancelled_waiter(
+        self,
+        request_id: UUID,
+        task: asyncio.Task[_DialogueResult],
+    ) -> None:
+        async with self._idempotency_lock:
+            current = self._idempotency.get(request_id)
+            if current is None or current.task is not task:
+                return
+            current.waiters -= 1
+            if current.waiters == 0:
+                cleanup = asyncio.create_task(self._cancel_orphan(request_id, task))
+                self._orphan_tasks.add(cleanup)
+                cleanup.add_done_callback(self._orphan_tasks.discard)
+
+    async def _cancel_orphan(
+        self,
+        request_id: UUID,
+        task: asyncio.Task[_DialogueResult],
+    ) -> None:
+        # Allow an immediate replacement waiter to adopt the shielded request.
+        await asyncio.sleep(0)
+        await asyncio.sleep(0)
+        async with self._idempotency_lock:
+            current = self._idempotency.get(request_id)
+            if current is None or current.task is not task or current.waiters:
+                return
+            if not task.done():
+                task.cancel()
 
     async def _remove_failed_entry(
         self,
@@ -278,6 +374,79 @@ class DialogueService:
         request: DialogueRequestV1,
         persona: PersonaDefinition,
     ) -> _DialogueResult:
+        try:
+            select_history_messages(persona.system_prompt, request.message, ())
+        except ContextBudgetError as error:
+            raise self._context_budget_error(error) from None
+
+        scope = ConversationScope(request.player_id, request.npc_id, request.conversation_id)
+        lock = self._scope_locks.setdefault(scope, asyncio.Lock())
+        self._scope_waiters[scope] = self._scope_waiters.get(scope, 0) + 1
+        acquired = False
+        reserved = False
+        try:
+            if lock.locked():
+                try:
+                    await asyncio.wait_for(lock.acquire(), timeout=2.0)
+                except TimeoutError:
+                    raise self._scope_unavailable(
+                        "The dialogue session is temporarily busy."
+                    ) from None
+            else:
+                await lock.acquire()
+            acquired = True
+
+            try:
+                history = self._session_store.begin(scope)
+            except SessionCapacityError:
+                raise self._scope_unavailable(
+                    "The dialogue service is temporarily at capacity."
+                ) from None
+            reserved = True
+
+            history_messages = select_history_messages(
+                persona.system_prompt, request.message, history
+            )
+            if not history_messages and self._requires_conversation_history(request.message):
+                result = self._empty_history_fallback(request.message, persona)
+            else:
+                result = await self._complete_provider(request, persona, history_messages)
+
+            if result.status is DialogueStatus.COMPLETED:
+                async with self._idempotency_lock:
+                    entry = self._idempotency.get(request.request_id)
+                    if (
+                        entry is None
+                        or entry.waiters == 0
+                        or entry.task is not asyncio.current_task()
+                    ):
+                        self._session_store.abort(scope)
+                        reserved = False
+                        raise asyncio.CancelledError
+                    self._session_store.commit(
+                        scope, ConversationTurn(request.message, result.reply)
+                    )
+                    reserved = False
+            else:
+                self._session_store.abort(scope)
+                reserved = False
+            return result
+        finally:
+            if reserved:
+                self._session_store.abort(scope)
+            if acquired:
+                lock.release()
+            self._scope_waiters[scope] -= 1
+            if self._scope_waiters[scope] == 0:
+                del self._scope_waiters[scope]
+                del self._scope_locks[scope]
+
+    async def _complete_provider(
+        self,
+        request: DialogueRequestV1,
+        persona: PersonaDefinition,
+        history_messages: tuple[ProviderHistoryMessage, ...],
+    ) -> _DialogueResult:
         provider_request = ProviderRequest(
             system_prompt=persona.system_prompt,
             user_message=request.message,
@@ -287,6 +456,7 @@ class DialogueService:
             timeout_seconds=self._config.timeout_seconds,
             thinking_enabled=False,
             stream=False,
+            history_messages=history_messages,
         )
         started = self._clock()
 
@@ -320,6 +490,51 @@ class DialogueService:
 
         latency_ms = max(0, round((self._clock() - started) * 1_000))
         return self._validate_completion(completion, persona, latency_ms=latency_ms)
+
+    @staticmethod
+    def _requires_conversation_history(message: str) -> bool:
+        normalized = message.casefold()
+        return any(marker in normalized for marker in _HISTORY_REFERENCE_MARKERS) and any(
+            marker in normalized for marker in _HISTORY_QUERY_MARKERS
+        )
+
+    def _empty_history_fallback(
+        self,
+        message: str,
+        persona: PersonaDefinition,
+    ) -> _DialogueResult:
+        has_chinese = any("\u4e00" <= character <= "\u9fff" for character in message)
+        return _DialogueResult(
+            reply=NO_HISTORY_REPLY_ZH if has_chinese else NO_HISTORY_REPLY_EN,
+            status=DialogueStatus.DEGRADED,
+            provider="local-fallback",
+            provider_model=self._config.model,
+            persona_version=persona.version,
+            usage=ProviderUsage(),
+            latency_ms=0,
+        )
+
+    @staticmethod
+    def _context_budget_error(error: ContextBudgetError) -> DialogueUseCaseError:
+        if error.failure is ContextBudgetFailure.CURRENT_MESSAGE:
+            return DialogueUseCaseError(
+                kind=DialogueFailureKind.VALIDATION_ERROR,
+                code=ApiErrorCode.VALIDATION_ERROR,
+                public_message="The dialogue message exceeds the available context budget.",
+                retryable=False,
+            )
+        return DialogueService._scope_unavailable(
+            "The dialogue service is temporarily unavailable."
+        )
+
+    @staticmethod
+    def _scope_unavailable(message: str) -> DialogueUseCaseError:
+        return DialogueUseCaseError(
+            kind=DialogueFailureKind.PROVIDER_UNAVAILABLE,
+            code=ApiErrorCode.PROVIDER_UNAVAILABLE,
+            public_message=message,
+            retryable=True,
+        )
 
     @staticmethod
     def _validate_completion(

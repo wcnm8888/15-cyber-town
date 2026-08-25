@@ -6,6 +6,7 @@ import logging
 from typing import Any
 
 from openai import APIError, APITimeoutError, AsyncOpenAI
+from openai.types.chat import ChatCompletionMessageParam
 from pydantic import SecretStr
 
 from cyber_town.application.provider import (
@@ -62,12 +63,28 @@ class DeepSeekProvider:
             raise ProviderUnavailableError("The dialogue provider request is not approved.")
 
         try:
+            request.__post_init__()
+            for message in request.history_messages:
+                message.__post_init__()
+        except (TypeError, ValueError):
+            raise ProviderUnavailableError(
+                "The dialogue provider request is not approved."
+            ) from None
+
+        messages: list[ChatCompletionMessageParam] = [
+            {"role": "system", "content": request.system_prompt}
+        ]
+        for message in request.history_messages:
+            if message.role == "user":
+                messages.append({"role": "user", "content": message.content})
+            else:
+                messages.append({"role": "assistant", "content": message.content})
+        messages.append({"role": "user", "content": request.user_message})
+
+        try:
             response = await self._client.chat.completions.create(
                 model=request.model,
-                messages=[
-                    {"role": "system", "content": request.system_prompt},
-                    {"role": "user", "content": request.user_message},
-                ],
+                messages=messages,
                 temperature=request.temperature,
                 max_tokens=request.max_tokens,
                 stream=False,

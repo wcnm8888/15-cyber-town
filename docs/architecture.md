@@ -5,24 +5,24 @@
 ```text
 Godot（场景 / 输入 / 动画 / UI）
   -- REST JSON --> FastAPI API（鉴权边界 / schema / 错误映射 / trace_id）
-  --> 对话编排应用层（单轮用例、幂等、输出校验、降级、审计）
+  --> 对话编排应用层（有界多轮工作记忆、上下文预算、幂等、并发、输出校验、降级、审计）
   --> NPC 领域层（版本化 persona 与 provider-neutral 契约）
-  --> 适配层（DeepSeek client、fake provider、日志/指标；未来才可能加入存储）
+  --> 适配层（DeepSeek 多消息 client、fake provider、日志/指标；当前没有持久化存储）
 ```
 
 Godot 不直连 LLM 或数据库；领域层不直接依赖 FastAPI、Godot、具体 LLM SDK 或 Qdrant。外部模型返回与工具参数一律作为不可信输入处理。
 
-## F-003 当前模块
+## F-004 当前模块
 
 | 模块 | 职责 | 不负责 |
 | --- | --- | --- |
 | `game/` | 最小场景、邻近交互、对话 UI、请求状态 | 角色推理、持久化、好感度规则 |
 | `backend/api/` | HTTP schema、错误码、关联 trace_id | 业务策略与 SQL 细节 |
-| `backend/application/` | 单轮对话编排、12 秒 deadline、进程内幂等、输出校验与降级 | persona 文本、HTTP、Godot 或具体 SDK |
+| `backend/application/` | 三元 scope 进程内短期记忆、完整回合、UTF-8 预算、同 scope 串行、12 秒 deadline、幂等、输出校验与降级 | persona 文本、HTTP、Godot、具体 SDK 或持久化 |
 | `backend/domain/` | 固定 Nia persona、provider-neutral DTO/错误和严格 loader | 网络、ORM、LLM SDK、记忆或关系状态 |
 | `backend/infrastructure/llm/` | fake provider 与隔离 DeepSeek adapter、SDK 错误分类和 usage 转换 | 业务决策、持久化或原始 provider 对象外泄 |
 
-当前 API 同时提供 `GET /api/v1/health` 与严格的 `POST /api/v1/dialogue`。Godot 保留 F-002 连接诊断场景，并新增独立低保真对话场景；Godot 只访问 FastAPI，不持有 API key 或直连 provider。F-003 已实现固定 `neon_guide / Nia`、版本化 `nia_v1.json`、应用服务、进程内幂等、fake provider 和 DeepSeek adapter；没有数据库、记忆、关系、多 NPC 或工具调用。
+当前 API 同时提供 `GET /api/v1/health` 与严格的 `POST /api/v1/dialogue`，公开 Dialogue v1 和 JSON Schema 不因 F-004 改变。Godot 复用既有连接诊断与低保真对话场景，只访问 FastAPI，不持有 API key 或直连 provider。固定 `neon_guide / Nia`、版本化 persona、fake provider 和隔离 DeepSeek adapter 之上新增纯内存短期工作记忆；没有数据库、长期记忆、关系、多 NPC 或工具调用。
 
 ## 工程门禁边界
 
@@ -40,10 +40,12 @@ Godot 不直连 LLM 或数据库；领域层不直接依赖 FastAPI、Godot、�
 
 ## 状态与一致性
 
-- 主键范围：`player_id`、`npc_id`、`conversation_id`；关系按 `(player_id, npc_id)`，记忆按同一命名空间隔离。
-- F-003 不创建持久化状态；persona 是版本化只读 JSON，单轮请求不保存聊天历史、关系或记忆。
+- 工作记忆作用域固定为完整 `(player_id, npc_id, conversation_id)`；任一字段变化都不得共享历史。未来关系作用域仍为 `(player_id, npc_id)`，不得混淆。
+- F-004 在当前进程内为每个 scope 保留最近 6 个成功完成的完整 user/assistant 回合；最多 128 个活动会话、idle TTL 1800 秒、过期优先和确定性 LRU；在途 session 不得驱逐，无法安全回收时返回可重试 503。
+- 上下文预算按 `64 + system(16 + UTF-8 bytes) + history Σ(16 + UTF-8 bytes) + current(16 + UTF-8 bytes) + 256 <= 8192` 估算；这不是 provider 官方 token 数。唯一 Nia persona system 和当前 user 不裁剪，历史只按完整回合从新到旧选择、从旧到新发送。
+- 同 scope 请求串行，最多等待 2 秒；跨 scope 可并发但 provider 全局上限 2。仅 `completed` 成功请求提交完整回合；degraded、timeout、无效响应、失败、取消、孤儿和晚到结果均不写入。
 - 每次 HTTP 尝试生成独立 `trace_id`；客户端 `request_id` 标识逻辑请求。进程内幂等 TTL 10 分钟、最多 256 项，同 ID 同 payload 合并/复用，同 ID 不同 payload 返回冲突。
-- 进程重启后幂等缓存丢失并可能再次计费，这是已接受的当前边界；SQLite、持久审计和持久幂等必须由后续独立任务批准。
+- 进程重启后幂等缓存和短期工作记忆均丢失；跨 worker/进程不共享，这是已接受的当前边界。SQLite、持久审计、持久幂等、长期记忆和其他数据库必须由后续独立任务批准。
 
 ## 失败与通信
 
@@ -51,4 +53,4 @@ Godot 不直连 LLM 或数据库；领域层不直接依赖 FastAPI、Godot、�
 
 仅当需要 token 级流式回复、服务器主动推送、多人同时状态广播或高频世界同步时，评估 WebSocket/SSE；不能因“实时”标签提前引入。
 
-F-003 模型调用采用并发上限 2、provider timeout 12 秒、Godot timeout 15 秒、non-thinking、non-stream 和 SDK 零自动 retry。只有用户手动 Retry 可以再次发起逻辑相同的失败请求；内容过滤可返回确定性 local fallback，其他 provider 失败映射为安全公共错误。审计只记录 allowlist 元数据、长度、usage、延迟和费用估算，不记录密钥、原始 prompt、玩家消息、模型回复或 provider body。
+模型调用继续采用并发上限 2、provider timeout 12 秒、Godot timeout 15 秒、non-thinking、non-stream 和 SDK 零自动 retry。只有用户手动 Retry 可以再次发起逻辑相同的失败请求；内容过滤可返回确定性 local fallback 且不写记忆，当前消息超预算返回 422，内部最小预算/会话容量/scope 等待失败返回可重试 503，provider 无效响应/超时维持 502/504。审计只记录 allowlist 元数据、长度、usage、延迟和费用估算，不记录密钥、原始 prompt、历史内容、玩家消息、模型回复或 provider body。

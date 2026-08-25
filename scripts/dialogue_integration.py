@@ -21,6 +21,7 @@ from cyber_town.api.app import create_app
 from cyber_town.application.dialogue import DialogueExecutionConfig, DialogueService
 from cyber_town.application.provider import (
     ProviderCompletion,
+    ProviderHistoryMessage,
     ProviderTimeoutError,
     ProviderUnavailableError,
     ProviderUsage,
@@ -61,6 +62,77 @@ def _completion(content: object = "Nia offers a synthetic offline reply.") -> Pr
         model="deepseek-v4-flash",
         usage=ProviderUsage(prompt_tokens=4, completion_tokens=3),
     )
+
+
+MEMORY_SCENARIOS: tuple[tuple[str, tuple[ProviderCompletion | Exception, ...], int], ...] = (
+    (
+        "multi_turn",
+        (
+            _completion("Synthetic first offline reply."),
+            _completion("Synthetic second offline reply."),
+            _completion("Synthetic third offline reply."),
+        ),
+        3,
+    ),
+    (
+        "multi_turn_recovery",
+        (
+            _completion("Synthetic first offline reply."),
+            ProviderUnavailableError("synthetic second-turn provider outage"),
+            _completion("Synthetic recovered offline reply."),
+            _completion("Synthetic third offline reply."),
+        ),
+        4,
+    ),
+)
+
+
+def _assert_memory_scenario(
+    scenario: str,
+    provider: FakeProvider,
+    outcomes: Sequence[ProviderCompletion | Exception] | None = None,
+) -> None:
+    """Validate complete fake history without rendering private synthetic message text."""
+
+    requests = provider.requests
+    expected_outcomes = outcomes
+    if expected_outcomes is None:
+        expected_outcomes = next(
+            (values for name, values, _calls in MEMORY_SCENARIOS if name == scenario),
+            None,
+        )
+    if expected_outcomes is None or len(requests) != len(expected_outcomes):
+        raise RuntimeError(f"{scenario} fake history outcomes did not match")
+
+    expected_lengths = (0, 2, 4) if scenario == "multi_turn" else (0, 2, 2, 4)
+    observed_lengths = tuple(len(request.history_messages) for request in requests)
+    if observed_lengths != expected_lengths:
+        raise RuntimeError(f"{scenario} fake history turn counts did not match")
+
+    expected_history: list[ProviderHistoryMessage] = []
+    for request, outcome in zip(requests, expected_outcomes, strict=True):
+        for actual, expected in zip(request.history_messages, expected_history, strict=True):
+            if actual.role != expected.role:
+                raise RuntimeError(f"{scenario} fake history message roles did not match")
+            if actual.content != expected.content:
+                raise RuntimeError(
+                    f"{scenario} fake {expected.role} history did not match its completed turn"
+                )
+        if isinstance(outcome, ProviderCompletion):
+            if not isinstance(outcome.content, str) or not outcome.content.strip():
+                raise RuntimeError(f"{scenario} fake assistant completion was invalid")
+            expected_history.extend(
+                (
+                    ProviderHistoryMessage("user", request.user_message),
+                    ProviderHistoryMessage("assistant", outcome.content.strip()),
+                )
+            )
+
+    if scenario == "multi_turn_recovery":
+        if requests[1].history_messages != requests[2].history_messages:
+            raise RuntimeError("multi_turn_recovery fake history changed after a failed turn")
+        if requests[1].user_message != requests[2].user_message:
+            raise RuntimeError("multi_turn_recovery manual retry changed its user message")
 
 
 def _fake_application(
@@ -182,7 +254,7 @@ def run(godot: Path) -> None:
         ),
         ("invalid_recovery", [_completion(None), _completion()], 2),
     )
-    for scenario, outcomes, expected_calls in scenarios:
+    for scenario, outcomes, expected_calls in (*scenarios, *MEMORY_SCENARIOS):
         application, provider = _fake_application(outcomes)
         with _fixture_server(application):
             _run_godot(godot, scenario)
@@ -191,6 +263,8 @@ def run(godot: Path) -> None:
                 f"{scenario} expected {expected_calls} fake provider calls, "
                 f"got {provider.call_count}"
             )
+        if scenario.startswith("multi_turn"):
+            _assert_memory_scenario(scenario, provider, outcomes)
 
     malformed_modes = (
         "wrong_content_type",
@@ -207,7 +281,7 @@ def run(godot: Path) -> None:
 
     if _port_is_open():
         raise RuntimeError("dialogue integration left its loopback listener running")
-    print("Local fake FastAPI-Godot dialogue integration passed (8 scenarios)")
+    print("Local fake FastAPI-Godot dialogue integration passed (10 scenarios)")
 
 
 def _parse_args() -> argparse.Namespace:

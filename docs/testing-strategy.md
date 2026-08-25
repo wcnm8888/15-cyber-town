@@ -20,7 +20,7 @@ UI 必须经过设计稿确认、冻结参考、同尺寸真实截图、用户�
 
 ### 当前统一入口
 
-运行 `uv run --frozen python scripts/quality.py`。入口先执行 ignore/敏感信息预检，再执行 lock freshness、ruff、mypy、schema drift、Godot editor import、GDScript 单测、9 个健康 loopback、8 个对话 fake loopback 和 pytest，最后复查仓库策略。每个子进程禁用 dotenv、移除继承的 provider key 并固定 provider 为 disabled；不需要真实凭证、LLM、数据库或业务外部服务。
+运行 `uv run --frozen python scripts/quality.py`。入口先执行 ignore/敏感信息预检，再执行 lock freshness、ruff、mypy、schema drift、Godot editor import、GDScript 单测、9 个健康 loopback、10 个对话 fake loopback 和 pytest，最后复查仓库策略。每个子进程禁用 dotenv、移除继承的 provider key 并固定 provider 为 disabled；不需要真实凭证、LLM、数据库或业务外部服务。
 
 负向测试覆盖：worktree/index 内容分叉、staged/missing `.gitignore`、symlink/异常 mode、大小写与多种配置语法凭证键、精确 placeholder、BOM/非 UTF-8/超大文本、二进制魔数伪装、结构化配置重复键/递归/过深输入 fail-closed、敏感预检顺序、子命令缺失与失败传播、配置环境隔离、未知/多余 schema drift，以及用 Draft 2020-12 validator 在不依赖可选 format assertion 的情况下验证合法与非法 request/response/error fixtures。socket monkeypatch 只证明本地策略 helper 不触网；统一入口的离线边界由命令白名单、无外部服务配置和独立 QA 共同验证，不把该单元测试夸大为操作系统级断网证明。
 
@@ -37,15 +37,24 @@ GitHub Actions 在 `main` push、pull request 和人工触发时先执行 `uv sy
 ### F-003 自动化、真实评估与 UAT 分工
 
 - Python 自动测试覆盖 persona loader、provider-neutral application、幂等/并发/取消、DeepSeek SDK adapter stub、HTTP Dialogue v1、公共错误、SDK DEBUG 脱敏、冻结配置、畸形 provider model/usage/choices 和重复 JSON；provider 测试使用 pytest 临时工作目录，质量子进程禁用 dotenv 并移除真实 key。Godot 单测覆盖九态、严格响应、唯一 JSON Content-Type、精确 HTTP 200、晚到回调、单在途和冻结 Retry payload。
-- `scripts/dialogue_integration.py` 与 `game/tests/run_dialogue_fake_integration.gd` 已接入统一质量入口和 GitHub Actions；8 个真实 loopback 场景覆盖 FastAPI + fake provider 成功、503/504/502 后手动 Retry 恢复，以及错误/缺失/重复 Content-Type 和 HTTP 201 拒绝，严格检查 fake 调用次数、冻结 payload 和端口释放。
+- F-003 建立的 `scripts/dialogue_integration.py` 与 `game/tests/run_dialogue_fake_integration.gd` 最初包含 8 个真实 loopback 场景，覆盖 FastAPI + fake provider 成功、503/504/502 后手动 Retry 恢复，以及错误/缺失/重复 Content-Type 和 HTTP 201 拒绝；F-004 在同一入口扩展至 10 个场景，严格检查 fake 调用次数、冻结 payload 和端口释放。
 - `game/tests/run_dialogue_integration.gd` 只在显式命令下运行真实对话场景，不接入统一质量入口或 CI；输入只通过验收进程环境传入，输出只含状态、回复字符数、trace/身份布尔值，不打印输入或回复正文。
 - 获专项授权的 Step 5 真实测试为 1 smoke + 12 persona 用例，最后一项复用 Godot 端到端；13 次真实调用、rubric 12/12 和费用上界均通过。
 - Step 6 首轮独立 QA 发现的 3 项 P1、6 项 P2，以及复审新增的同类畸形 `choices` P2 均已完成失败优先修复；两名独立 reviewer 最终均为 NO FINDINGS。Step 7 用户真实窗口 UAT 已明确通过，覆盖真实成功回复、503/504/502 失败状态、手动 Retry 恢复、提示注入边界和发送期间按钮禁用；自动化、真实 headless 端到端或模型 rubric 不替代该人工验收。
 
-## 首切片验收状态
+### F-004 fake-only 多轮、真实评估与 UAT 分工
+
+- store/配置单元覆盖三元 scope、6 完整回合、128 sessions、1800 秒 TTL、确定性 LRU、在途保护、容量耗尽和被冻结的 8192/64/16/256/2 秒参数。
+- provider/application 单元覆盖 SDK-neutral history DTO、唯一 persona system、UTF-8 中文/emoji/组合字符、整回合裁剪、scope 串行/全局并发、幂等共享、取消和晚到不写。
+- FastAPI + FakeProvider 集成覆盖连续多轮、player/conversation 隔离、unknown NPC、6→7 裁剪、422、503、502、504、degraded、成功 replay、409 conflict 和失败后手动 Retry 不产生伪记忆。
+- 现有 Godot 场景和客户端不修改；10 个真实本地 loopback 包含原有 8 场景，以及连续三轮同 scope 和第二轮 503 → 手动 Retry → 第三轮。验证稳定 conversation_id、新 Send 独立 request_id、Retry 冻结 payload、完整历史及端口释放。
+- 真实 provider 多轮评估仅在单独授权的 Step 5 执行；独立 QA 在 Step 6；真实窗口用户 UAT 及准确调用/token/费用记录仅在另行授权的 Step 7 执行，均不得用 fake 成功替代。
+- Step 7 首轮真实窗口 UAT 发现空历史模型虚构既往代号；新增中英文、跨 scope 与 HTTP 负例锁定：没有可用历史且明确追问先前交流时必须返回确定性 `degraded / local-fallback`，不得调用 provider、产生费用或写入记忆。用户随后亲自在真实 Godot 窗口复验该确定性路径并确认 `FAKE_PROVIDER_CALLS=0`；真实模型同 scope 回忆沿用此前已通过的独立用户 UAT。
+
+## F-003 已归档首切片验收状态
 
 1. 已实现并自动验证玩家可在固定 Godot 场景发出一条对话；响应包含并展示脱敏 `trace_id`。
 2. 已自动验证 API 对非法 NPC、空/超长输入、重复 request、模型超时/无效输出返回可预测错误或降级结果。
-3. 固定 Nia persona 真实评审集已通过；多 NPC、玩家隔离和记忆串扰不属于 F-003。
+3. 固定 Nia persona 真实评审集已通过；F-004 已在 fake-only 自动化中额外验证玩家、NPC 和会话隔离及短期记忆串扰，多 NPC 实现仍不在范围内。
 4. 审计记录不保存 API key、完整原始敏感内容或模型内部推理；错误分类、耗时和 token/cost 字段可检查。
-5. Godot headless 真实端到端和用户真实窗口 UAT 均已通过；用户确认完整窗口成功、失败状态及手动 Retry 恢复。
+5. F-003 的 Godot headless 真实端到端和用户真实窗口 UAT 均已通过；用户确认完整窗口成功、失败状态及手动 Retry 恢复。F-004 用户真实窗口已独立验证真实模型同 scope 回忆和新 scope 隔离，修复后又亲自复验空历史明确“不知道”，`FAKE_PROVIDER_CALLS=0`；不复用 F-003 的 UAT 结论。
