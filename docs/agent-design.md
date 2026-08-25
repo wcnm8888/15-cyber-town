@@ -24,3 +24,11 @@
 ## 多 Agent 结论
 
 首版不需要多 Agent。每个 NPC 是同一单 NPC 对话能力的独立领域实例，而非多个自主协作者。只有出现可独立并行、明确跨 NPC 协议、调度锁、共享世界事实和评估标准后，才评估 NPC 间互动。
+
+## F-003 当前切片
+
+- 唯一 NPC 是 `neon_guide / Nia`，persona 由版本化 `nia_v1.json` 冻结；她不得声称拥有工具、网络、数据库或长期记忆。
+- Godot 只调用 FastAPI；应用层选择 persona、执行 12 秒 deadline、严格校验 provider 结果并维护 10 分钟/256 项进程内幂等。具体 OpenAI SDK 类型只存在于 DeepSeek adapter。
+- provider 固定 non-thinking、non-stream、零自动 retry；Godot 失败后只允许玩家手动 Retry，并复用同一 request ID 和冻结 payload。
+- 结构化 audit 只允许 trace/request ID、persona/provider/model、结果、延迟、usage、费用估算和字符数，不记录原始 prompt、玩家消息、模型回复、API key 或 provider body。
+- Step 5 的 12 项真实 persona 用例与 Godot 端到端已通过；这不等同于独立 QA、用户窗口 UAT，也不授权记忆、多 NPC 或 R-04。

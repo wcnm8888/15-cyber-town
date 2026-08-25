@@ -82,3 +82,13 @@
 - CI：runner bootstrap 从 Godot 官方 `godot-builds` 取得 4.7.2 Linux x86_64 Standard zip，并校验官方发布 SHA-256；workflow 仍为 `contents: read`、无 secrets、无 service container 或发布权限。
 - 平台裁决：用户在 Step 5 明确授权按引擎实际 result 验收停服状态；`RESULT_TIMEOUT` 显示 timeout，其他传输失败显示 unavailable，两者均须显示 Retry。Windows Godot 4.7.2 对无监听 loopback 的锁定预期为 timeout；503 fixture 确定性覆盖 unavailable。
 - 后果：F-002 只建立工程诊断连通，不授权对话、LLM、数据库、NPC 或 R-03；Windows UAT 与 GitHub Linux CI 共同覆盖平台差异，远程交付事实由 PR #2 记录。
+
+## ADR-013：F-003 单 NPC、provider 隔离与真实验收边界
+
+- 状态：已锁定（F-003 / Step 5，2026-08-25）。
+- 对话：固定 `neon_guide / Nia` 与版本化 `nia_v1.json`，复用既有 Dialogue v1；Godot 只访问 `POST /api/v1/dialogue`，不持有 key 或直连模型。
+- Provider：`deepseek-v4-flash` 经隔离 OpenAI SDK adapter 调用，固定 `https://api.deepseek.com`、non-thinking、non-stream、temperature 0.6、max tokens 256、12 秒 provider timeout、15 秒 Godot timeout 和 SDK 零自动 retry。
+- 状态：只做单轮对话与 10 分钟/256 项进程内幂等；失败后只允许玩家手动 Retry。服务重启后不保证幂等，也不引入数据库、记忆、关系、多 NPC 或工具。
+- 隐私：provider 默认 disabled；真实 key 只允许在用户专项授权时由 Settings 从 Git 忽略的本地 `.env` 读取。日志和证据禁止 key、原始 prompt、玩家消息、模型回复、reasoning 或 provider body。
+- 评估：自动测试与 CI 永久 fake-only。Step 5 获批上限为 15 次/USD 0.05，实际 13 次、1770 输入 token、809 输出 token、峰值价格费用上界 USD 0.00184668；1 次 smoke、12 项 persona 用例、rubric 12/12 和真实 Godot 端到端通过。
+- 后果：Step 5 完成只允许进入另行授权的独立 QA；用户 UAT、Git 交付和归档仍是后续门禁，不自动进入 R-04。

@@ -557,6 +557,7 @@ def test_local_policy_helpers_do_not_require_network(
     monkeypatch.setattr(socket.socket, "connect", fail_connect)
     clean_file = tmp_path / "clean.txt"
     clean_file.write_text("local-only\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
 
     assert Settings.model_validate({}).llm_api_key is None
     assert render_schemas()
@@ -576,6 +577,7 @@ def test_quality_command_set_contains_no_network_client() -> None:
         "godot-import",
         "godot-unit",
         "connectivity",
+        "dialogue-connectivity",
         "pytest",
     ]
     assert commands[4][1] == (
@@ -592,6 +594,33 @@ def test_quality_command_set_contains_no_network_client() -> None:
         "--godot",
         "godot",
     )
+    assert commands[7][1] == (
+        "python",
+        "scripts/dialogue_integration.py",
+        "--godot",
+        "godot",
+    )
+
+
+def test_quality_subprocesses_cannot_inherit_credentials_or_read_dotenv(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    captured: dict[str, str] = {}
+    monkeypatch.setenv("LLM_API_KEY", "synthetic-inherited-provider-value")
+    monkeypatch.setenv("LLM_PROVIDER", "deepseek")
+
+    def record_command(*_args: object, **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        captured.update(kwargs.get("env", {}))
+        return subprocess.CompletedProcess(args=[], returncode=0)
+
+    monkeypatch.setattr(subprocess, "run", record_command)
+
+    quality._run_command("synthetic-isolation", ("synthetic-tool",), tmp_path)
+
+    assert captured.get("CYBER_TOWN_DISABLE_DOTENV") == "1"
+    assert captured.get("LLM_PROVIDER") == "disabled"
+    assert "LLM_API_KEY" not in captured
 
 
 def test_quality_runs_repository_policies_before_and_after_commands(

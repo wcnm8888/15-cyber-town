@@ -5,6 +5,8 @@ from typing import Literal
 from fastapi import FastAPI, status
 from pydantic import BaseModel, ConfigDict
 
+from cyber_town.api.dialogue import DialogueApplication, install_dialogue_boundary
+
 HEALTH_PATH = "/api/v1/health"
 
 
@@ -18,10 +20,11 @@ class HealthResponseV1(BaseModel):
     api_version: Literal["v1"] = "v1"
 
 
-def create_app() -> FastAPI:
+def create_app(dialogue_service: DialogueApplication | None = None) -> FastAPI:
     """Build the HTTP application without external service dependencies."""
 
     application = FastAPI(title="Cyber Town API", version="0.1.0")
+    install_dialogue_boundary(application, dialogue_service)
 
     @application.get(
         HEALTH_PATH,

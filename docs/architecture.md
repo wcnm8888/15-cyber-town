@@ -1,28 +1,28 @@
-# 架构（候选，待任务卡逐项确认）
+# 架构与当前实现边界
 
 ## 分层与单向流
 
 ```text
 Godot（场景 / 输入 / 动画 / UI）
   -- REST JSON --> FastAPI API（鉴权边界 / schema / 错误映射 / trace_id）
-  --> 对话编排应用层（上下文预算、重试、降级、审计）
-  --> NPC 领域层（persona、会话、关系、记忆策略、状态机）
-  --> 适配层（LLM client、SQLite repository、可选 vector store、日志/指标）
+  --> 对话编排应用层（单轮用例、幂等、输出校验、降级、审计）
+  --> NPC 领域层（版本化 persona 与 provider-neutral 契约）
+  --> 适配层（DeepSeek client、fake provider、日志/指标；未来才可能加入存储）
 ```
 
 Godot 不直连 LLM 或数据库；领域层不直接依赖 FastAPI、Godot、具体 LLM SDK 或 Qdrant。外部模型返回与工具参数一律作为不可信输入处理。
 
-## 首个切片的候选模块
+## F-003 当前模块
 
 | 模块 | 职责 | 不负责 |
 | --- | --- | --- |
 | `game/` | 最小场景、邻近交互、对话 UI、请求状态 | 角色推理、持久化、好感度规则 |
 | `backend/api/` | HTTP schema、错误码、关联 trace_id | 业务策略与 SQL 细节 |
-| `backend/application/` | 单轮对话编排、超时、重试、降级 | persona 文本与存储实现 |
-| `backend/domain/` | NPC/会话/关系/记忆的纯模型与规则 | 网络、ORM、LLM SDK |
-| `backend/infrastructure/` | provider、SQLite、日志、指标实现 | 业务决策 |
+| `backend/application/` | 单轮对话编排、12 秒 deadline、进程内幂等、输出校验与降级 | persona 文本、HTTP、Godot 或具体 SDK |
+| `backend/domain/` | 固定 Nia persona、provider-neutral DTO/错误和严格 loader | 网络、ORM、LLM SDK、记忆或关系状态 |
+| `backend/infrastructure/llm/` | fake provider 与隔离 DeepSeek adapter、SDK 错误分类和 usage 转换 | 业务决策、持久化或原始 provider 对象外泄 |
 
-当前已创建 `backend/src/cyber_town` 的配置、v1 契约基础设施和最小 `api` 包。API 只提供 `GET /api/v1/health`，精确返回固定的 service/status/api_version；`game/` 只包含一个 `Control` 诊断场景、`HTTPRequest` 客户端、有限状态映射和无第三方依赖测试。对话路由、应用/领域编排、LLM 和存储实现仍不存在。
+当前 API 同时提供 `GET /api/v1/health` 与严格的 `POST /api/v1/dialogue`。Godot 保留 F-002 连接诊断场景，并新增独立低保真对话场景；Godot 只访问 FastAPI，不持有 API key 或直连 provider。F-003 已实现固定 `neon_guide / Nia`、版本化 `nia_v1.json`、应用服务、进程内幂等、fake provider 和 DeepSeek adapter；没有数据库、记忆、关系、多 NPC 或工具调用。
 
 ## 工程门禁边界
 
@@ -41,9 +41,9 @@ Godot 不直连 LLM 或数据库；领域层不直接依赖 FastAPI、Godot、�
 ## 状态与一致性
 
 - 主键范围：`player_id`、`npc_id`、`conversation_id`；关系按 `(player_id, npc_id)`，记忆按同一命名空间隔离。
-- SQLite 是结构化真相来源：NPC 配置版本、会话元数据、关系数值、记忆元数据、审计索引与幂等请求记录。
-- 每次对话先生成 `trace_id` 和客户端请求幂等键；在一个事务内保存可持久事实。模型失败不得部分更新关系或记忆。
-- 内存只可作短暂缓存/锁；重启后不得丢失已确认的领域事实。
+- F-003 不创建持久化状态；persona 是版本化只读 JSON，单轮请求不保存聊天历史、关系或记忆。
+- 每次 HTTP 尝试生成独立 `trace_id`；客户端 `request_id` 标识逻辑请求。进程内幂等 TTL 10 分钟、最多 256 项，同 ID 同 payload 合并/复用，同 ID 不同 payload 返回冲突。
+- 进程重启后幂等缓存丢失并可能再次计费，这是已接受的当前边界；SQLite、持久审计和持久幂等必须由后续独立任务批准。
 
 ## 失败与通信
 
@@ -51,4 +51,4 @@ Godot 不直连 LLM 或数据库；领域层不直接依赖 FastAPI、Godot、�
 
 仅当需要 token 级流式回复、服务器主动推送、多人同时状态广播或高频世界同步时，评估 WebSocket/SSE；不能因“实时”标签提前引入。
 
-模型调用采用受限并发、总超时、有限重试（仅瞬时失败）、熔断/退避和用户可理解的降级回复。降级事件必须可审计，但不记录原始敏感正文。
+F-003 模型调用采用并发上限 2、provider timeout 12 秒、Godot timeout 15 秒、non-thinking、non-stream 和 SDK 零自动 retry。只有用户手动 Retry 可以再次发起逻辑相同的失败请求；内容过滤可返回确定性 local fallback，其他 provider 失败映射为安全公共错误。审计只记录 allowlist 元数据、长度、usage、延迟和费用估算，不记录密钥、原始 prompt、玩家消息、模型回复或 provider body。

@@ -4,6 +4,7 @@ const STATE_SCRIPT_PATH := "res://scripts/backend_health_state.gd"
 const CLIENT_SCRIPT_PATH := "res://scripts/backend_health_client.gd"
 const UI_SCRIPT_PATH := "res://scripts/backend_status_ui.gd"
 const MAIN_SCENE_PATH := "res://scenes/backend_status.tscn"
+const DialogueTestSuite = preload("res://tests/dialogue_test_suite.gd")
 
 const EXPECTED_HEALTH := {
 	"status": "ok",
@@ -32,6 +33,7 @@ func _run() -> void:
 	_test_timeout_and_transport_mapping(state_script)
 	_test_single_in_flight_and_retry_state(client_script)
 	_test_main_scene_contract()
+	_failures.append_array(DialogueTestSuite.new().run(root))
 	_finish()
 
 

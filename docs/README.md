@@ -10,7 +10,7 @@
 - 当前状态：[`project-management/progress.md`](project-management/progress.md)
 - 验收证据：[`project-management/evidence.md`](project-management/evidence.md)
 
-`F-001` 已由 PR #1 交付归档；`F-002` 的任务卡与实现计划位于 [`archive/task-cards/`](archive/task-cards/)，实现、验收与归档由 PR #2 统一交付，最终 CI 与合并事实以 GitHub 为准。当前无活动任务，未进入 R-03。未创建 `memory-bank/`，本 `docs/` 是唯一权威文档体系。
+`F-001` 与 `F-002` 已分别由 PR #1、PR #2 交付归档。当前活动任务为 `F-003 / ready_for_git_delivery`：真实 DeepSeek 验收、修复后的独立 QA、用户真实窗口 UAT 和 fake-only 最终本地门禁已通过；Git 交付和归档尚未执行。未进入 R-04，也未创建 `memory-bank/`；本 `docs/` 是唯一权威文档体系。
 
 ## 权威文档与更新规则
 
