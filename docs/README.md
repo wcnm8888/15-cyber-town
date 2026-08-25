@@ -10,7 +10,7 @@
 - 当前状态：[`project-management/progress.md`](project-management/progress.md)
 - 验收证据：[`project-management/evidence.md`](project-management/evidence.md)
 
-`F-001`、`F-002` 与 `F-003` 已分别由 PR #1、PR #2、PR #3 完成交付。当前唯一活动任务为 `R-04 / F-004 短期会话记忆与上下文预算`；Step 7 空历史虚构记忆已完成 fake-only 失败优先修复、用户真实 Godot 窗口零调用复验及完整统一门禁，当前为 `ready_for_git_delivery`，Git 交付尚未授权。未创建 `memory-bank/`；本 `docs/` 仍是唯一权威文档体系。
+`F-001`、`F-002`、`F-003` 与 `F-004` 的统一交付载体分别为 PR #1、PR #2、PR #3、PR #4。F-004 的真实 DeepSeek 多轮评估、独立 QA、用户真实 Godot 窗口 UAT、fake-only 最终本地门禁与任务归档均已准备完成；最终 CI 与合并事实以 GitHub PR #4 为准。当前无活动任务，未进入 R-05，也未创建 `memory-bank/`；本 `docs/` 仍是唯一权威文档体系。
 
 ## 权威文档与更新规则
 
