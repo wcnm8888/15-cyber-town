@@ -5,6 +5,7 @@ from ipaddress import ip_address
 import uvicorn
 
 from cyber_town.api.app import app
+from cyber_town.api.composition import build_dialogue_service
 from cyber_town.config import Settings
 
 
@@ -22,9 +23,11 @@ def main() -> None:
     """Start the local server using APP_HOST and APP_PORT settings."""
 
     settings = Settings()
+    host = _validated_loopback_host(settings.app_host)
+    app.state.dialogue_service = build_dialogue_service(settings)
     uvicorn.run(
         app,
-        host=_validated_loopback_host(settings.app_host),
+        host=host,
         port=settings.app_port,
     )
 

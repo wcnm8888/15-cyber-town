@@ -23,9 +23,7 @@ from yaml.nodes import MappingNode, Node, ScalarNode, SequenceNode
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 GODOT_ENVIRONMENT_VARIABLE = "CYBER_TOWN_GODOT"
 EXPECTED_GODOT_VERSION_PREFIX = "4.7.2.stable."
-PINNED_WINDOWS_GODOT = Path(
-    r"E:\Agent.tools\godot\4.7.2\Godot_v4.7.2-stable_win64_console.exe"
-)
+PINNED_WINDOWS_GODOT = Path(r"E:\Agent.tools\godot\4.7.2\Godot_v4.7.2-stable_win64_console.exe")
 
 EXPECTED_IGNORED_PATHS: tuple[str, ...] = (
     ".env",
@@ -163,8 +161,7 @@ def resolve_godot_executable() -> Path:
         ):
             return candidate.resolve()
     raise QualityCheckError(
-        f"Godot 4.7.2 stable is required; set {GODOT_ENVIRONMENT_VARIABLE} "
-        "to its executable"
+        f"Godot 4.7.2 stable is required; set {GODOT_ENVIRONMENT_VARIABLE} to its executable"
     )
 
 
@@ -201,6 +198,15 @@ def quality_commands(
             (
                 interpreter,
                 "scripts/connectivity_integration.py",
+                "--godot",
+                godot_executable,
+            ),
+        ),
+        (
+            "dialogue-connectivity",
+            (
+                interpreter,
+                "scripts/dialogue_integration.py",
                 "--godot",
                 godot_executable,
             ),
@@ -707,8 +713,13 @@ def scan_repository(root: Path) -> list[SensitiveFinding]:
 
 def _run_command(label: str, command: Sequence[str], root: Path) -> None:
     print(f"[quality] {label}", flush=True)
+    environment = {
+        name: value for name, value in os.environ.items() if name.casefold() != "llm_api_key"
+    }
+    environment["CYBER_TOWN_DISABLE_DOTENV"] = "1"
+    environment["LLM_PROVIDER"] = "disabled"
     try:
-        completed = subprocess.run(command, cwd=root, check=False)
+        completed = subprocess.run(command, cwd=root, env=environment, check=False)
     except OSError as error:
         raise QualityCheckError(f"{label} could not start") from error
     if completed.returncode != 0:

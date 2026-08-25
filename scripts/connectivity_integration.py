@@ -68,11 +68,14 @@ def _fastapi_server() -> Iterator[None]:
     if _port_is_open():
         raise RuntimeError(f"refusing to replace existing listener on {HOST}:{PORT}")
 
-    environment = os.environ.copy()
+    environment = {
+        name: value for name, value in os.environ.items() if name.casefold() != "llm_api_key"
+    }
     environment.update(
         {
             "APP_HOST": HOST,
             "APP_PORT": str(PORT),
+            "CYBER_TOWN_DISABLE_DOTENV": "1",
             "LLM_PROVIDER": "disabled",
         }
     )
@@ -225,22 +228,19 @@ def run(godot: Path) -> None:
         _run_godot(godot, "unavailable")
         if server.request_count != 1:
             raise RuntimeError(
-                "unavailable expected exactly one request, "
-                f"got {server.request_count}"
+                f"unavailable expected exactly one request, got {server.request_count}"
             )
     with _fixture_server("duplicate_key") as server:
         _run_godot(godot, "duplicate_rejected")
         if server.request_count != 1:
             raise RuntimeError(
-                "duplicate_rejected expected exactly one request, "
-                f"got {server.request_count}"
+                f"duplicate_rejected expected exactly one request, got {server.request_count}"
             )
     with _fixture_server("non_string_field") as server:
         _run_godot(godot, "non_string_rejected")
         if server.request_count != 1:
             raise RuntimeError(
-                "non_string_rejected expected exactly one request, "
-                f"got {server.request_count}"
+                f"non_string_rejected expected exactly one request, got {server.request_count}"
             )
     with (
         _fixture_server("always_healthy", REDIRECT_TARGET_PORT) as target,
@@ -249,8 +249,7 @@ def run(godot: Path) -> None:
         _run_godot(godot, "redirect_rejected")
         if source.request_count != 1:
             raise RuntimeError(
-                "redirect_rejected expected exactly one source request, "
-                f"got {source.request_count}"
+                f"redirect_rejected expected exactly one source request, got {source.request_count}"
             )
         if target.request_count != 0:
             raise RuntimeError("redirect target must not be requested")
