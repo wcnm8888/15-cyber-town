@@ -92,3 +92,12 @@
 - 隐私：provider 默认 disabled；真实 key 只允许在用户专项授权时由 Settings 从 Git 忽略的本地 `.env` 读取。日志和证据禁止 key、原始 prompt、玩家消息、模型回复、reasoning 或 provider body。
 - 评估：自动测试与 CI 永久 fake-only。Step 5 获批上限为 15 次/USD 0.05，实际 13 次、1770 输入 token、809 输出 token、峰值价格费用上界 USD 0.00184668；1 次 smoke、12 项 persona 用例、rubric 12/12 和真实 Godot 端到端通过。
 - 后果：Step 5 完成只允许进入另行授权的独立 QA；用户 UAT、Git 交付和归档仍是后续门禁，不自动进入 R-04。
+
+## ADR-014：F-004 纯内存工作记忆、上下文工程预算与 fake-only 多轮门禁
+
+- 状态：已锁定（F-004 / Step 4，2026-08-25）。
+- 工作记忆：唯一 scope 为 `(player_id, npc_id, conversation_id)`；当前进程内最多 128 个活动会话，每个会话只保留最近 6 个成功完成的完整 user/assistant 回合，idle TTL 1800 秒，过期优先、确定性 LRU 且在途不可驱逐。服务重启/跨 worker 不保证保留；不创建数据库或运行时数据文件。
+- Provider 与预算：Nia persona 为唯一且首位 system，随后为完整历史 user/assistant 对与当前 user；历史 DTO 不含 SDK 类型。工程预算固定 `64 + system(16 + UTF-8 bytes) + history Σ(16 + UTF-8 bytes) + current(16 + UTF-8 bytes) + 256 <= 8192`；不新增 tokenizer，估算值不等于官方真实 token 数。
+- 一致性：同 scope 请求串行、最多等待 2 秒；跨 scope 服从 provider 并发上限 2。成功 replay/并发只写一次；degraded、失败、取消、孤儿和晚到结果不生成伪记忆。当前消息超预算映射 422；最小上下文、容量或 scope 等待失败映射可重试 503。
+- 验证：统一自动化与 CI 永久 fake-only，保持公开 Dialogue v1/Schema 与原有 Godot 场景不变；真实本地对话 loopback 从 8 增加到 10 个场景，新增同 scope 连续三轮和失败后手动 Retry 再继续对话。
+- 真实边界：Step 5 最多 8 次/USD 0.035、Step 7 最多 4 次/USD 0.015，均须独立授权，合计不超过 12 次/USD 0.05；独立 QA、用户 UAT、Git 交付及 R-05 不自动执行。

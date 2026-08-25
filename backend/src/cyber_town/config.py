@@ -6,7 +6,7 @@ import os
 from enum import StrEnum
 from typing import Any, Self
 
-from pydantic import Field, SecretStr, model_validator
+from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict
 
 
@@ -26,6 +26,7 @@ class LlmProvider(StrEnum):
 
 DEEPSEEK_MODEL = "deepseek-v4-flash"
 DEEPSEEK_BASE_URL = "https://api.deepseek.com"
+MEMORY_SCOPE_FIELDS: tuple[str, str, str] = ("player_id", "npc_id", "conversation_id")
 
 
 class Settings(BaseSettings):
@@ -56,6 +57,16 @@ class Settings(BaseSettings):
     llm_thinking_enabled: bool = False
     llm_stream: bool = False
 
+    memory_scope_fields: tuple[str, str, str] = MEMORY_SCOPE_FIELDS
+    memory_max_turns: int = Field(default=6, gt=0)
+    memory_max_sessions: int = Field(default=128, gt=0)
+    memory_idle_ttl_seconds: int = Field(default=1_800, gt=0)
+    memory_context_budget_units: int = Field(default=8_192, gt=0)
+    memory_request_overhead_units: int = Field(default=64, gt=0)
+    memory_message_overhead_units: int = Field(default=16, gt=0)
+    memory_response_reserve_units: int = Field(default=256, gt=0)
+    memory_scope_wait_seconds: float = Field(default=2.0, gt=0, allow_inf_nan=False)
+
     def __init__(self, **values: Any) -> None:
         if os.environ.get("CYBER_TOWN_DISABLE_DOTENV") == "1":
             values["_env_file"] = None
@@ -75,6 +86,24 @@ class Settings(BaseSettings):
             return init_settings, env_settings, file_secret_settings
         return init_settings, env_settings, dotenv_settings, file_secret_settings
 
+    @field_validator(
+        "memory_max_turns",
+        "memory_max_sessions",
+        "memory_idle_ttl_seconds",
+        "memory_context_budget_units",
+        "memory_request_overhead_units",
+        "memory_message_overhead_units",
+        "memory_response_reserve_units",
+        mode="before",
+    )
+    @classmethod
+    def reject_noninteger_memory_policy_values(cls, value: object) -> object:
+        """Reject bool/float coercion while retaining normal environment parsing."""
+
+        if isinstance(value, (bool, float)):
+            raise ValueError("Short-term memory policy values must be integers")
+        return value
+
     @model_validator(mode="after")
     def require_key_for_enabled_provider(self) -> Self:
         """Reject an enabled provider unless a non-empty secret is supplied."""
@@ -90,6 +119,21 @@ class Settings(BaseSettings):
         for name, actual, expected in frozen_values:
             if actual != expected:
                 raise ValueError(f"{name} must remain {expected} for F-003")
+
+        memory_frozen_values: tuple[tuple[str, object, object], ...] = (
+            ("MEMORY_SCOPE_FIELDS", self.memory_scope_fields, MEMORY_SCOPE_FIELDS),
+            ("MEMORY_MAX_TURNS", self.memory_max_turns, 6),
+            ("MEMORY_MAX_SESSIONS", self.memory_max_sessions, 128),
+            ("MEMORY_IDLE_TTL_SECONDS", self.memory_idle_ttl_seconds, 1_800),
+            ("MEMORY_CONTEXT_BUDGET_UNITS", self.memory_context_budget_units, 8_192),
+            ("MEMORY_REQUEST_OVERHEAD_UNITS", self.memory_request_overhead_units, 64),
+            ("MEMORY_MESSAGE_OVERHEAD_UNITS", self.memory_message_overhead_units, 16),
+            ("MEMORY_RESPONSE_RESERVE_UNITS", self.memory_response_reserve_units, 256),
+            ("MEMORY_SCOPE_WAIT_SECONDS", self.memory_scope_wait_seconds, 2.0),
+        )
+        for name, actual, expected in memory_frozen_values:
+            if actual != expected:
+                raise ValueError(f"{name} must remain {expected} for F-004")
 
         if self.llm_thinking_enabled:
             raise ValueError("LLM_THINKING_ENABLED must remain false for F-003")

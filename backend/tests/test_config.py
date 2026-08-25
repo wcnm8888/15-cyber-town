@@ -25,6 +25,26 @@ CONFIG_ENV_NAMES = (
     "LLM_IDEMPOTENCY_MAX_ENTRIES",
     "LLM_THINKING_ENABLED",
     "LLM_STREAM",
+    "MEMORY_SCOPE_FIELDS",
+    "MEMORY_MAX_TURNS",
+    "MEMORY_MAX_SESSIONS",
+    "MEMORY_IDLE_TTL_SECONDS",
+    "MEMORY_CONTEXT_BUDGET_UNITS",
+    "MEMORY_REQUEST_OVERHEAD_UNITS",
+    "MEMORY_MESSAGE_OVERHEAD_UNITS",
+    "MEMORY_RESPONSE_RESERVE_UNITS",
+    "MEMORY_SCOPE_WAIT_SECONDS",
+)
+
+F004_NUMERIC_MEMORY_POLICY: tuple[tuple[str, int | float], ...] = (
+    ("memory_max_turns", 6),
+    ("memory_max_sessions", 128),
+    ("memory_idle_ttl_seconds", 1_800),
+    ("memory_context_budget_units", 8_192),
+    ("memory_request_overhead_units", 64),
+    ("memory_message_overhead_units", 16),
+    ("memory_response_reserve_units", 256),
+    ("memory_scope_wait_seconds", 2.0),
 )
 
 
@@ -255,3 +275,124 @@ def test_provider_key_is_redacted_when_provider_configuration_is_invalid() -> No
 def test_port_must_be_in_tcp_range(port: int) -> None:
     with pytest.raises(ValidationError):
         Settings.model_validate({"app_port": port})
+
+
+def test_f004_freezes_default_short_term_memory_policy() -> None:
+    settings = Settings.model_validate({})
+
+    assert settings.memory_scope_fields == ("player_id", "npc_id", "conversation_id")
+    for field, expected in F004_NUMERIC_MEMORY_POLICY:
+        assert getattr(settings, field) == expected
+    assert settings.memory_response_reserve_units == settings.llm_max_tokens
+
+
+def test_f004_approved_memory_policy_parses_from_environment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    approved_values = {
+        "MEMORY_SCOPE_FIELDS": '["player_id", "npc_id", "conversation_id"]',
+        "MEMORY_MAX_TURNS": "6",
+        "MEMORY_MAX_SESSIONS": "128",
+        "MEMORY_IDLE_TTL_SECONDS": "1800",
+        "MEMORY_CONTEXT_BUDGET_UNITS": "8192",
+        "MEMORY_REQUEST_OVERHEAD_UNITS": "64",
+        "MEMORY_MESSAGE_OVERHEAD_UNITS": "16",
+        "MEMORY_RESPONSE_RESERVE_UNITS": "256",
+        "MEMORY_SCOPE_WAIT_SECONDS": "2",
+    }
+    for name, value in approved_values.items():
+        monkeypatch.setenv(name, value)
+
+    settings = Settings.model_validate({})
+
+    assert settings.memory_scope_fields == ("player_id", "npc_id", "conversation_id")
+    for field, expected in F004_NUMERIC_MEMORY_POLICY:
+        assert getattr(settings, field) == expected
+
+
+@pytest.mark.parametrize(
+    "scope_fields",
+    [
+        (),
+        ("player_id", "npc_id"),
+        ("player_id", "npc_id", "conversation_id", "request_id"),
+        ("npc_id", "player_id", "conversation_id"),
+        ("player_id", "npc_id", "request_id"),
+        ("player_id", "player_id", "conversation_id"),
+        ("player_id", "npc_id", None),
+        ("player_id", "npc_id", 123),
+        "player_id,npc_id,conversation_id",
+        {"player_id": "player", "npc_id": "npc", "conversation_id": "session"},
+    ],
+)
+def test_f004_rejects_missing_reordered_or_invalid_conversation_scope(
+    scope_fields: object,
+) -> None:
+    with pytest.raises(ValidationError):
+        Settings.model_validate({"memory_scope_fields": scope_fields})
+
+
+@pytest.mark.parametrize(("field", "approved"), F004_NUMERIC_MEMORY_POLICY)
+@pytest.mark.parametrize("offset", [-1, 1])
+def test_f004_rejects_in_range_drift_from_frozen_memory_policy(
+    field: str,
+    approved: int | float,
+    offset: int,
+) -> None:
+    with pytest.raises(ValidationError, match="must remain"):
+        Settings.model_validate({field: approved + offset})
+
+
+@pytest.mark.parametrize(("field", "_approved"), F004_NUMERIC_MEMORY_POLICY)
+@pytest.mark.parametrize("value", [0, -1])
+def test_f004_rejects_nonpositive_memory_policy_values(
+    field: str,
+    _approved: int | float,
+    value: int,
+) -> None:
+    with pytest.raises(ValidationError):
+        Settings.model_validate({field: value})
+
+
+@pytest.mark.parametrize(("field", "_approved"), F004_NUMERIC_MEMORY_POLICY)
+@pytest.mark.parametrize("value", [None, True, 1.5, "not-a-number", {}, []])
+def test_f004_rejects_invalid_memory_policy_types(
+    field: str,
+    _approved: int | float,
+    value: object,
+) -> None:
+    with pytest.raises(ValidationError):
+        Settings.model_validate({field: value})
+
+
+@pytest.mark.parametrize(("field", "approved"), F004_NUMERIC_MEMORY_POLICY[:-1])
+def test_f004_integer_memory_policy_rejects_integral_float_values(
+    field: str,
+    approved: int | float,
+) -> None:
+    with pytest.raises(ValidationError):
+        Settings.model_validate({field: float(approved)})
+
+
+@pytest.mark.parametrize("value", [float("nan"), float("inf"), -float("inf")])
+def test_f004_scope_wait_rejects_nonfinite_values(value: float) -> None:
+    with pytest.raises(ValidationError):
+        Settings.model_validate({"memory_scope_wait_seconds": value})
+
+
+def test_f004_scope_environment_drift_fails_closed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("MEMORY_SCOPE_FIELDS", '["npc_id", "player_id", "conversation_id"]')
+
+    with pytest.raises(ValidationError, match="MEMORY_SCOPE_FIELDS must remain"):
+        Settings.model_validate({})
+
+
+def test_f004_numeric_environment_drift_fails_closed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("MEMORY_CONTEXT_BUDGET_UNITS", "8193")
+
+    with pytest.raises(ValidationError, match="MEMORY_CONTEXT_BUDGET_UNITS must remain"):
+        Settings.model_validate({})

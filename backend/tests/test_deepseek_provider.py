@@ -21,6 +21,7 @@ from cyber_town.api.composition import build_dialogue_service
 from cyber_town.application.dialogue import DialogueFailureKind, DialogueUseCaseError
 from cyber_town.application.provider import (
     ProviderCompletion,
+    ProviderHistoryMessage,
     ProviderInvalidResponseError,
     ProviderRequest,
     ProviderTimeoutError,
@@ -199,6 +200,46 @@ def test_adapter_rejects_unapproved_request_before_sdk_call(
 
     with pytest.raises(ProviderUnavailableError):
         asyncio.run(provider.complete(provider_request))
+
+    assert client.completions.calls == []
+
+
+def test_adapter_orders_unique_persona_complete_history_and_current_user() -> None:
+    provider, client = adapter(sdk_response())
+    request = replace(
+        REQUEST,
+        history_messages=(
+            ProviderHistoryMessage("user", "First synthetic question"),
+            ProviderHistoryMessage("assistant", "First synthetic reply"),
+            ProviderHistoryMessage("user", "Second synthetic question"),
+            ProviderHistoryMessage("assistant", "Second synthetic reply"),
+        ),
+    )
+
+    asyncio.run(provider.complete(request))
+
+    messages = client.completions.calls[0]["messages"]
+    assert messages == [
+        {"role": "system", "content": "Frozen synthetic persona prompt."},
+        {"role": "user", "content": "First synthetic question"},
+        {"role": "assistant", "content": "First synthetic reply"},
+        {"role": "user", "content": "Second synthetic question"},
+        {"role": "assistant", "content": "Second synthetic reply"},
+        {"role": "user", "content": "Where is the quiet street?"},
+    ]
+    assert sum(message["role"] == "system" for message in messages) == 1
+
+
+@pytest.mark.parametrize("injected_role", ["system", "developer", "tool"])
+def test_adapter_rejects_tampered_history_role_before_sdk_call(injected_role: str) -> None:
+    provider, client = adapter(sdk_response())
+    user = ProviderHistoryMessage("user", "Synthetic history")
+    assistant = ProviderHistoryMessage("assistant", "Synthetic reply")
+    request = replace(REQUEST, history_messages=(user, assistant))
+    object.__setattr__(user, "role", injected_role)
+
+    with pytest.raises(ProviderUnavailableError, match="not approved"):
+        asyncio.run(provider.complete(request))
 
     assert client.completions.calls == []
 

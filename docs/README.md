@@ -10,7 +10,7 @@
 - 当前状态：[`project-management/progress.md`](project-management/progress.md)
 - 验收证据：[`project-management/evidence.md`](project-management/evidence.md)
 
-`F-001`、`F-002` 与 `F-003` 的统一交付载体分别为 PR #1、PR #2、PR #3。F-003 的真实 DeepSeek 验收、独立 QA、用户真实窗口 UAT、fake-only 最终本地门禁与任务归档均已准备完成；最终 CI 与合并事实以 GitHub PR #3 为准。当前无活动任务，未进入 R-04，也未创建 `memory-bank/`；本 `docs/` 是唯一权威文档体系。
+`F-001`、`F-002`、`F-003` 与 `F-004` 的统一交付载体分别为 PR #1、PR #2、PR #3、PR #4。F-004 的真实 DeepSeek 多轮评估、独立 QA、用户真实 Godot 窗口 UAT、fake-only 最终本地门禁与任务归档均已准备完成；最终 CI 与合并事实以 GitHub PR #4 为准。当前无活动任务，未进入 R-05，也未创建 `memory-bank/`；本 `docs/` 仍是唯一权威文档体系。
 
 ## 权威文档与更新规则
 
