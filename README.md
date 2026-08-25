@@ -2,7 +2,7 @@
 
 一个用于系统学习 Agent 工程的 AI NPC 赛博小镇项目。目标是在 Godot 场景中让玩家与具备角色、记忆和可审计行为边界的 NPC 交互。
 
-`F-001`、`F-002`、`F-003` 与 `F-004` 已分别通过 PR #1、PR #2、PR #3、PR #4 完成交付和归档；F-004 squash merge 后的 `main` 基线为 `3e03d64d129871495f3fe73295ee9b11478f2e71`。固定 Nia 对话已有按 `player_id + npc_id + conversation_id` 隔离的进程内短期工作记忆，以及 F-005 使用标准库 SQLite 按 `player_id + npc_id` 隔离的结构化长期记忆实现；Step 5 专项真实评估共 7 次调用、保守费用 USD 0.000690。Step 6 已修复默认启动装配、旧值复活、幂等重放、usage、低敏感话题、scope 过期和评估 oracle 等缺陷，两名独立 reviewer 均为 NO FINDINGS。Step 7 用户真实 Godot 窗口 UAT 已通过，真实调用 3 次、500 输入/141 输出 token、USD 0.000408；F-005 累计 10 次、USD 0.001098，pending=0。当前状态为 `step_7_complete / ready_for_git_delivery`，Git 交付尚未授权。项目规则与当前事实见 [AGENTS.md](AGENTS.md) 和 [docs/README.md](docs/README.md)。
+`F-001`、`F-002`、`F-003` 与 `F-004` 已分别通过 PR #1—#4 完成交付和归档；`F-005 长期记忆与检索评估` 的统一交付与归档载体为 PR #5，首个功能 HEAD 的 GitHub Linux `quality` 已通过，最终 CI 与合并事实以 GitHub 为准。固定 Nia 对话已有按 `player_id + npc_id + conversation_id` 隔离的进程内短期记忆，以及按 `player_id + npc_id` 隔离的标准库 SQLite 结构化长期记忆。独立 QA 无未解决发现，用户真实窗口 UAT 已通过，F-005 实际累计 10 次、1744 输入/247 输出 token、USD 0.001098；本地 fake-only 门禁 1095 passed。当前无活动任务，不自动进入 R-06。项目规则与当前事实见 [AGENTS.md](AGENTS.md) 和 [docs/README.md](docs/README.md)。
 
 当前统一验证命令：`uv run --frozen python scripts/quality.py`。它执行 Git ignore/敏感信息预检、lock、ruff、mypy、schema、Godot 导入与单测、9 个 F-002 健康 loopback、10 个对话 fake loopback、pytest 和最终策略复检；对话场景包含连续多轮与失败后的手动 Retry 恢复。每个质量子进程强制禁用 `.env`、剔除继承的 provider key 并固定 `LLM_PROVIDER=disabled`；对话集成仅使用本地 FastAPI 和 fake provider。需要 Godot 4.7.2，可通过 `CYBER_TOWN_GODOT` 指向 executable；Windows 默认也会检查本项目批准的便携路径。
 

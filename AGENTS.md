@@ -3,7 +3,7 @@
 ## 项目定位与阶段
 
 - 等级：L（多模块、Agent、状态持久化、安全与可观测性）。
-- 当前阶段：`F-005 / step_7_complete / ready_for_git_delivery`。`F-004 短期会话记忆与上下文预算` 已通过 PR #4 squash merge 并完成归档，`main` 基线为 `3e03d64d129871495f3fe73295ee9b11478f2e71`。`F-005` Step 5 真实评估共 7 次、1244 输入/106 输出 token、USD 0.000690；Step 6 已修复 5 项 P1、3 项 P2 及近邻，两名 reviewer 均 NO FINDINGS。Step 7 用户真实 Godot 窗口 UAT 已通过：隔离 SQLite 完成 unknown、记住、跨窗口/重启召回、更新、遗忘与最终 unknown，真实调用 3 次、500 输入/141 输出 token、USD 0.000408；F-005 累计 10 次、USD 0.001098，pending=0。最终 fake-only 门禁 1095 passed，正式数据库未创建、8000 端口已释放。Git 交付仍须另获授权，不得进入 R-06。
+- 当前阶段：`no_active_task / F-005_delivery_via_PR_5`。F-001—F-004 已分别通过 PR #1—#4 交付并归档；F-005 起始 `main` 基线为 `3e03d64d129871495f3fe73295ee9b11478f2e71`，功能提交为 `338852e4dd03f8c679f8a2db920e2ba7bd6f968e`。F-005 Step 5 真实评估 7 次/USD 0.000690；独立 QA 最终 NO FINDINGS；Step 7 用户真实窗口 UAT 3 次/USD 0.000408；任务累计 10 次/USD 0.001098，pending=0。最终本地 fake-only 门禁 1095 passed，正式数据库未创建、8000 端口已释放；首轮 GitHub Linux `quality` 已通过，任务归档、最终 CI 与合并事实以 PR #5 为准。当前无活动任务，不得自动进入 R-06。
 - 本项目是 Agent 工程学习项目，同时交付可运行、可交互、可验证的 AI NPC 小镇。
 
 ## 关键边界

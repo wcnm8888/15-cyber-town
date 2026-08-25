@@ -9,7 +9,7 @@
 | 层级 | 内容与存储 | 生命周期 | 首阶段 |
 | --- | --- | --- | --- |
 | 工作记忆 | `player_id + npc_id + conversation_id` 三元 scope 内最近完整 user/assistant 回合；仅当前进程内存 | 最近 6 回合、128 活动 scope、idle TTL 1800 秒；服务重启后丢失 | F-004 已实现 |
-| 结构化长期事实 | `player_id + npc_id` 双元 scope；标准库 SQLite 中的显式、白名单、低敏感事实及来源/version/status | 默认 30 天、显式永久、更新递增版本、遗忘清空正文；每 scope 64、全局 4096 | F-005 已实现，仅通过 pytest 临时数据库离线验证 |
+| 结构化长期事实 | `player_id + npc_id` 双元 scope；标准库 SQLite 中的显式、白名单、低敏感事实及来源/version/status | 默认 30 天、显式永久、更新递增版本、遗忘清空正文；每 scope 64、全局 4096 | F-005 已通过 pytest 隔离数据库、真实 DeepSeek 评估及用户真实 Godot 窗口 UAT |
 | 语义检索候选 | embedding/向量召回或 Qdrant | 必须另立任务、证明准确率、隔离、删除一致性与费用收益 | F-005 明确不实现 |
 
 ## 处理管线
@@ -25,7 +25,7 @@
 
 只有 `completed` 且公开响应验证通过的逻辑请求可以写入；degraded/local-fallback、422/502/503/504、取消、孤儿或晚到结果均不生成伪记忆。长期事实更新/遗忘递增所属双元 scope 代次：旧在途 provider 结果 fail-closed，已完成旧回复 replay 返回 409，不泄漏旧值也不重复调用；已持久化 Remember/Forget operation 在服务重启后 replay 不得误递增代次、清理有效历史或中断合法请求。同 ID 不同 payload 仍为 409，其他 owner 的有效缓存不受影响。超过 128 个会话时先清理过期会话，再淘汰没有在途工作的确定性 LRU；在途满载必须 fail-closed。
 
-长期记录已包含 `memory_id`、双元 scope、来源 conversation/request/trace、importance、confidence、到期时间、version 与 status；SQLite operation/event 表只保留事务和无正文事件。正式业务路径锁定为 `data/cyber-town.sqlite3`，当前仍未创建；自动化只使用 pytest `tmp_path`，专项授权的 Step 5 真实评估只使用 Git 忽略的 `data/uat/f-005/step-5-real-20260825/cyber-town.sqlite3` 和正式 metadata-only 调用台账 `data/acceptance-ledgers/f-005.sqlite3`。
+长期记录已包含 `memory_id`、双元 scope、来源 conversation/request/trace、importance、confidence、到期时间、version 与 status；SQLite operation/event 表只保留事务和无正文事件。正式业务路径锁定为 `data/cyber-town.sqlite3`，当前仍未创建；自动化只使用 pytest `tmp_path`，专项授权的 Step 5 真实评估和 Step 7 用户 UAT 分别使用 Git 忽略的 `data/uat/f-005/step-5-real-20260825/cyber-town.sqlite3`、`data/uat/f-005/step-7-user-20260825/cyber-town.sqlite3`，并共享 metadata-only 调用台账 `data/acceptance-ledgers/f-005.sqlite3`。
 
 ## Qdrant 启用门槛
 
