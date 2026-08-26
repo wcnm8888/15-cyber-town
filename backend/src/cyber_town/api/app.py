@@ -7,6 +7,7 @@ from pydantic import BaseModel, ConfigDict
 
 from cyber_town.api.dialogue import DialogueApplication, install_dialogue_boundary
 from cyber_town.api.relationships import RelationshipApplication, install_relationship_boundary
+from cyber_town.application.observability import ObservabilityRecorder
 
 HEALTH_PATH = "/api/v1/health"
 
@@ -24,11 +25,16 @@ class HealthResponseV1(BaseModel):
 def create_app(
     dialogue_service: DialogueApplication | None = None,
     relationship_service: RelationshipApplication | None = None,
+    observability_recorder: ObservabilityRecorder | None = None,
 ) -> FastAPI:
     """Build the HTTP application without external service dependencies."""
 
     application = FastAPI(title="Cyber Town API", version="0.1.0")
-    install_dialogue_boundary(application, dialogue_service)
+    install_dialogue_boundary(
+        application,
+        dialogue_service,
+        observability_recorder=observability_recorder,
+    )
     if relationship_service is None:
         relationship_service = getattr(dialogue_service, "relationship_service", None)
     install_relationship_boundary(application, relationship_service)

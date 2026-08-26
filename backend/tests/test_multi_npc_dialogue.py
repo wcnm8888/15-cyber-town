@@ -169,10 +169,8 @@ def test_composition_routes_each_approved_persona_through_dialogue_v1(
     assert provider.requests[0].system_prompt == expected.system_prompt
     assert provider.requests[0].system_prompt.count(f"You are {display_name}") == 1
     audits = [getattr(record, "dialogue_audit", {}) for record in caplog.records]
-    assert any(
-        audit.get("npc_id") == npc_id and audit.get("persona_version") == version
-        for audit in audits
-    )
+    assert any(audit.get("persona_version") == version for audit in audits)
+    assert all("npc_id" not in audit for audit in audits)
 
 
 @pytest.mark.parametrize(("npc_id", "display_name", "_version"), PERSONAS)
