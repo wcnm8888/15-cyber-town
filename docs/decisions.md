@@ -119,4 +119,4 @@
 - 决策：关系 scope 固定为 `(player_id, npc_id)`；状态初始 20、范围 0–100、单次最大 ±2、每日最多一次有效非零变化。LLM 只在既有对话调用中提出严格分类与置信度建议，确定性规则拥有分值、阶段、冷却、饱和与持久化写入权。
 - SQLite：保持唯一真相源，迁移机制从单一 `0001` checksum 校验升级为有序追加校验；新增 `0002_relationship_state.sql`，禁止修改 F-005 已有 `0001_long_term_memory.sql` 或引入第二数据库。
 - API/UI：新增严格只读关系 GET，不修改冻结 Dialogue v1；Godot 仅在用户批准最小视觉契约后做低保真只读展示。
-- 后果：F-006 Step 0—6 已在 fake-only 边界内完成；同次 JSON completion 的建议只作为不可信 metadata，确定性引擎与 SQLite 事务保留唯一状态权。4040 次规则/冷却裁决、24 个对抗建议、2 个 UTC 日界和 Step 6 的黑盒操纵/并发 QA 均未确认产品缺陷；公开 Dialogue v1 不变，新增关系 GET 和 Godot 低保真读取。后续用户 UAT、任何真实调用和 Git 交付仍须分别授权；不读取 `.env`、不调用真实 provider、不复用 F-005 的费用、台账或隔离数据库。
+- 后果：F-006 已在 fake-only 边界内完成并由 PR #6 squash merge 到 `main`；同次 JSON completion 的建议只作为不可信 metadata，确定性引擎与 SQLite 事务保留唯一状态权。4040 次规则/冷却裁决、24 个对抗建议、2 个 UTC 日界、Step 6 黑盒操纵/并发 QA、Step 7 fake-only Godot UAT 与最终 `1257 passed` 门禁均未确认产品缺陷；公开 Dialogue v1 不变，新增关系 GET 和 Godot 低保真读取。未读取 `.env`、不调用真实 provider、不复用 F-005 的费用、台账或隔离数据库。

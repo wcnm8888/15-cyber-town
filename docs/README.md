@@ -10,7 +10,7 @@
 - 当前状态：[`project-management/progress.md`](project-management/progress.md)
 - 验收证据：[`project-management/evidence.md`](project-management/evidence.md)
 
-`F-001`—`F-005` 已分别通过 PR #1—#5 完成交付和归档；F-005 已合并到当前 `main` / `origin/main` 的 `c9d11b0a3c441a10463ad4522bb226f055f07f35`。F-005 两名独立 reviewer 均 NO FINDINGS，真实评估与用户 Godot UAT 均通过；累计 10 次、1744 输入/247 输出 token、USD 0.001098，pending=0。当前状态为 `step_7_complete / awaiting_git_delivery_authorization / F-006_deterministic_affection`：最小视口修复、重新用户 UAT 与最终 fake-only 门禁均通过，未读取 `.env` 或调用真实模型。未创建 `memory-bank/`，本 `docs/` 仍是唯一权威文档体系。
+`F-001`—`F-006` 已分别通过 PR #1—#6 完成交付和归档。F-006 功能提交 `f943af4` 经 PR #6 的 GitHub Linux `quality` 通过后，已 squash merge 到 `main` / `origin/main` 的 `3c2059aad7ef5a1e9dd0154ad49d2b0e93f8f47f`；最终 fake-only 本地门禁为 `1257 passed`。当前状态为 `git_delivery_authorized / F-007_multi_npc_isolation`：固定视口 P2 与交付前关系 GET allowlist P1 均已最小修复，三 NPC 用户窗口 UAT 和 `1319 passed` 最终统一门禁通过，Git 交付正在进行。未创建 `memory-bank/`，本 `docs/` 仍是唯一权威文档体系。
 
 ## 权威文档与更新规则
 
