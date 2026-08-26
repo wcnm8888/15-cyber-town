@@ -11,8 +11,8 @@ const VALIDATION: StringName = &"validation"
 const RETRYING: StringName = &"retrying"
 
 const STATE_MESSAGES := {
-	IDLE: "Send a message to Nia",
-	LOADING: "Nia is thinking…",
+	IDLE: "Send a message to %s",
+	LOADING: "%s is thinking…",
 	SUCCESS: "Reply received",
 	TIMEOUT: "Dialogue request timed out",
 	UNAVAILABLE: "Dialogue service unavailable",
@@ -53,8 +53,11 @@ func _init() -> void:
 	)
 
 
-func message_for(state: StringName) -> String:
-	return STATE_MESSAGES.get(state, STATE_MESSAGES[INVALID_RESPONSE])
+func message_for(state: StringName, display_name := "Nia") -> String:
+	var message: String = STATE_MESSAGES.get(state, STATE_MESSAGES[INVALID_RESPONSE])
+	if state == IDLE or state == LOADING:
+		return message % display_name
+	return message
 
 
 func result_for_response(

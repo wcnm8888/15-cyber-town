@@ -28,7 +28,7 @@ from cyber_town.application.provider import (
     ProviderUsage,
 )
 from cyber_town.application.relationship import RelationshipService
-from cyber_town.domain.persona import load_bundled_persona
+from cyber_town.domain.persona import load_bundled_personas
 from cyber_town.infrastructure.llm.fake import FakeProvider
 from cyber_town.infrastructure.persistence.sqlite_relationship import SqliteRelationshipRepository
 
@@ -36,6 +36,9 @@ HOST = "127.0.0.1"
 PORT = 8000
 DIALOGUE_PATH = "/api/v1/dialogue"
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+TWO_LINE_VIEWPORT_REPLY = (
+    "Nia begins a fresh conversation with her retained relationship snapshot."
+)
 
 
 def _port_is_open() -> bool:
@@ -145,7 +148,7 @@ def _fake_application(
 ) -> Iterator[tuple[FastAPI, FakeProvider]]:
     """Build an isolated fake-only dialogue and relationship loopback fixture."""
 
-    with TemporaryDirectory(prefix="cyber-town-f006-") as temporary_directory:
+    with TemporaryDirectory(prefix="cyber-town-f007-") as temporary_directory:
         root = Path(temporary_directory)
         repository = SqliteRelationshipRepository(
             database_path=root / "isolated.sqlite3",
@@ -153,9 +156,8 @@ def _fake_application(
         )
         repository.initialize()
         provider = FakeProvider(outcomes)
-        persona = load_bundled_persona("nia_v1.json")
         service = DialogueService(
-            personas={persona.npc_id: persona},
+            personas=load_bundled_personas(),
             provider=provider,
             config=DialogueExecutionConfig(
                 model="deepseek-v4-flash",
@@ -249,6 +251,21 @@ def _run_godot(godot: Path, scenario: str) -> None:
     )
 
 
+def _run_multi_npc_godot(godot: Path) -> None:
+    subprocess.run(
+        [
+            str(godot),
+            "--headless",
+            "--path",
+            str(PROJECT_ROOT / "game"),
+            "--script",
+            "res://tests/run_multi_npc_fake_integration.gd",
+        ],
+        cwd=PROJECT_ROOT,
+        check=True,
+    )
+
+
 def run(godot: Path) -> None:
     if not godot.is_file():
         raise FileNotFoundError(f"Godot executable not found: {godot}")
@@ -256,7 +273,7 @@ def run(godot: Path) -> None:
         raise RuntimeError(f"dialogue integration requires a free {HOST}:{PORT}")
 
     scenarios: Sequence[tuple[str, Sequence[ProviderCompletion | Exception], int]] = (
-        ("success", [_completion()], 1),
+        ("success", [_completion(TWO_LINE_VIEWPORT_REPLY)], 1),
         (
             "unavailable_recovery",
             [ProviderUnavailableError("synthetic provider outage"), _completion()],
@@ -294,9 +311,28 @@ def run(godot: Path) -> None:
         if observed["requests"] != 1:
             raise RuntimeError(f"{mode} expected exactly one offline HTTP request")
 
+    multi_npc_outcomes = tuple(
+        _completion(f"{display_name} returns an isolated synthetic reply.")
+        for display_name in ("Nia", "Ivo", "Rhea")
+    )
+    with _fake_application(multi_npc_outcomes) as (application, provider):
+        with _fixture_server(application):
+            _run_multi_npc_godot(godot)
+        if provider.call_count != 3:
+            raise RuntimeError("multi-NPC loopback expected exactly three fake provider calls")
+        personas = load_bundled_personas()
+        expected_prompts = tuple(
+            personas[npc_id].system_prompt
+            for npc_id in ("neon_guide", "signal_archivist", "night_courier")
+        )
+        if tuple(request.system_prompt for request in provider.requests) != expected_prompts:
+            raise RuntimeError("multi-NPC loopback did not preserve persona prompt ownership")
+        if any(request.history_messages for request in provider.requests):
+            raise RuntimeError("multi-NPC switch leaked short-term history across conversations")
+
     if _port_is_open():
         raise RuntimeError("dialogue integration left its loopback listener running")
-    print("Local fake FastAPI-Godot dialogue integration passed (10 scenarios)")
+    print("Local fake FastAPI-Godot dialogue integration passed (10 base + multi-NPC)")
 
 
 def _parse_args() -> argparse.Namespace:

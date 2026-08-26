@@ -1,6 +1,7 @@
 extends RefCounted
 
 const STATE_SCRIPT_PATH := "res://scripts/dialogue/dialogue_state.gd"
+const NPC_REGISTRY_SCRIPT_PATH := "res://scripts/dialogue/npc_registry.gd"
 const CLIENT_SCRIPT_PATH := "res://scripts/dialogue/dialogue_client.gd"
 const RELATIONSHIP_CLIENT_SCRIPT_PATH := "res://scripts/dialogue/relationship_client.gd"
 const UI_SCRIPT_PATH := "res://scripts/dialogue/dialogue_ui.gd"
@@ -27,6 +28,7 @@ func run(root: Window) -> Array[String]:
 	_root = root
 	for path in [
 		STATE_SCRIPT_PATH,
+		NPC_REGISTRY_SCRIPT_PATH,
 		CLIENT_SCRIPT_PATH,
 		RELATIONSHIP_CLIENT_SCRIPT_PATH,
 		UI_SCRIPT_PATH,
@@ -37,8 +39,10 @@ func run(root: Window) -> Array[String]:
 		return _failures
 
 	var state_script: Script = load(STATE_SCRIPT_PATH)
+	var npc_registry_script: Script = load(NPC_REGISTRY_SCRIPT_PATH)
 	var client_script: Script = load(CLIENT_SCRIPT_PATH)
 	var relationship_client_script: Script = load(RELATIONSHIP_CLIENT_SCRIPT_PATH)
+	_test_fixed_npc_registry(npc_registry_script)
 	_test_frozen_state_messages(state_script)
 	_test_strict_success_response(state_script)
 	_test_invalid_success_responses(state_script)
@@ -47,13 +51,42 @@ func run(root: Window) -> Array[String]:
 	_test_transport_failures(state_script)
 	_test_input_validation(client_script)
 	_test_single_inflight_and_manual_retry(client_script)
+	_test_switching_npc_replaces_scope_and_suppresses_late_reply(client_script)
+	_test_rapid_npc_switch_property(client_script)
 	_test_late_callback_cannot_override_new_generation(client_script)
 	_test_editing_message_invalidates_retry_context(client_script)
 	_test_relationship_snapshot_contract(relationship_client_script)
+	_test_relationship_switch_replaces_scope_and_suppresses_late_snapshot(
+		relationship_client_script
+	)
 	_test_scene_contract()
 	if _failures.is_empty():
 		print("Godot dialogue tests passed")
 	return _failures
+
+
+func _test_fixed_npc_registry(npc_registry_script: Script) -> void:
+	var registry: RefCounted = npc_registry_script.new()
+	_assert_equal(
+		registry.definitions(),
+		[
+			{"npc_id": "neon_guide", "display_name": "Nia"},
+			{"npc_id": "signal_archivist", "display_name": "Ivo"},
+			{"npc_id": "night_courier", "display_name": "Rhea"},
+		],
+		"Godot NPC registry is the fixed ordered allowlist",
+	)
+	for expected: Array in [
+		["neon_guide", "Nia"],
+		["signal_archivist", "Ivo"],
+		["night_courier", "Rhea"],
+	]:
+		_assert_true(registry.is_allowed(expected[0]), "approved NPC is allowed")
+		_assert_equal(
+			registry.display_name_for(expected[0]), expected[1], "approved display name"
+		)
+	_assert_false(registry.is_allowed("unknown_npc"), "unknown NPC fails closed")
+	_assert_equal(registry.display_name_for("unknown_npc"), "", "unknown display name is empty")
 
 
 func _test_frozen_state_messages(state_script: Script) -> void:
@@ -71,6 +104,8 @@ func _test_frozen_state_messages(state_script: Script) -> void:
 	}
 	for state: StringName in expected:
 		_assert_equal(model.message_for(state), expected[state], "dialogue message: %s" % state)
+	_assert_equal(model.message_for(&"idle", "Ivo"), "Send a message to Ivo", "Ivo idle message")
+	_assert_equal(model.message_for(&"loading", "Rhea"), "Rhea is thinking…", "Rhea loading")
 
 
 func _test_strict_success_response(state_script: Script) -> void:
@@ -332,6 +367,117 @@ func _test_single_inflight_and_manual_retry(client_script: Script) -> void:
 	client.free()
 
 
+func _test_switching_npc_replaces_scope_and_suppresses_late_reply(client_script: Script) -> void:
+	var client: Node = client_script.new()
+	var bodies: Array[String] = []
+	client.set_request_sender_for_testing(func(
+		_url: String,
+		_headers: PackedStringArray,
+		_method: int,
+		body: String,
+	) -> int:
+		bodies.append(body)
+		return OK
+	)
+	_assert_equal(client.active_npc_id(), "neon_guide", "Nia remains the default NPC")
+	var nia_conversation: String = client.conversation_id()
+	_assert_true(client.begin_send("Nia request that will become stale"), "Nia request starts")
+	var stale_generation: int = client.active_generation()
+	var stale_payload: Dictionary = JSON.parse_string(bodies[0])
+
+	_assert_true(client.switch_npc("signal_archivist"), "approved NPC switch succeeds")
+	_assert_equal(client.active_npc_id(), "signal_archivist", "Ivo becomes active")
+	_assert_true(client.conversation_id() != nia_conversation, "NPC switch creates conversation")
+	_assert_false(client.is_request_in_flight(), "old NPC request is invalidated")
+	_assert_false(client.can_retry(), "old NPC retry payload is cleared")
+	_assert_equal(client.latest_reply, "", "old NPC reply is cleared")
+	_assert_equal(client.latest_trace_id, "", "old NPC trace is cleared")
+	_assert_equal(client.state, &"idle", "new NPC returns to idle")
+
+	var stale_success := VALID_SUCCESS.duplicate()
+	stale_success["request_id"] = stale_payload["request_id"]
+	stale_success["conversation_id"] = stale_payload["conversation_id"]
+	client.handle_response(
+		stale_generation,
+		HTTPRequest.RESULT_SUCCESS,
+		200,
+		JSON.stringify(stale_success).to_utf8_buffer(),
+	)
+	_assert_equal(client.state, &"idle", "late Nia callback cannot overwrite Ivo idle")
+	_assert_equal(client.latest_reply, "", "late Nia reply remains hidden")
+
+	_assert_true(client.begin_send("Ivo-owned request"), "Ivo request starts")
+	var ivo_payload: Dictionary = JSON.parse_string(bodies[1])
+	_assert_equal(ivo_payload["npc_id"], "signal_archivist", "payload uses active Ivo scope")
+	_assert_equal(
+		ivo_payload["conversation_id"], client.conversation_id(), "payload uses new conversation"
+	)
+	var ivo_success := VALID_SUCCESS.duplicate()
+	ivo_success["request_id"] = ivo_payload["request_id"]
+	ivo_success["conversation_id"] = ivo_payload["conversation_id"]
+	ivo_success["npc_id"] = "signal_archivist"
+	ivo_success["reply"] = "Ivo-owned reply"
+	client.handle_response(
+		client.active_generation(),
+		HTTPRequest.RESULT_SUCCESS,
+		200,
+		JSON.stringify(ivo_success).to_utf8_buffer(),
+	)
+	_assert_equal(client.latest_reply, "Ivo-owned reply", "active Ivo reply is accepted")
+
+	var before_invalid: String = client.conversation_id()
+	_assert_false(client.switch_npc("unknown_npc"), "unknown NPC switch fails closed")
+	_assert_equal(client.active_npc_id(), "signal_archivist", "invalid switch preserves active NPC")
+	_assert_equal(client.conversation_id(), before_invalid, "invalid switch preserves conversation")
+	client.free()
+
+
+func _test_rapid_npc_switch_property(client_script: Script) -> void:
+	var client: Node = client_script.new()
+	var bodies: Array[String] = []
+	client.set_request_sender_for_testing(func(
+		_url: String,
+		_headers: PackedStringArray,
+		_method: int,
+		body: String,
+	) -> int:
+		bodies.append(body)
+		return OK
+	)
+	var npc_ids := ["neon_guide", "signal_archivist", "night_courier"]
+	var conversations := {client.conversation_id(): true}
+	var request_ids := {}
+	for index in range(30):
+		var current_npc: String = npc_ids[index % npc_ids.size()]
+		var next_npc: String = npc_ids[(index + 1) % npc_ids.size()]
+		_assert_equal(client.active_npc_id(), current_npc, "rapid switch current NPC")
+		_assert_true(client.begin_send("rapid switch %d" % index), "rapid request starts")
+		var generation: int = client.active_generation()
+		var payload: Dictionary = JSON.parse_string(bodies[index])
+		request_ids[String(payload["request_id"])] = true
+		_assert_true(client.switch_npc(next_npc), "rapid approved switch succeeds")
+		conversations[client.conversation_id()] = true
+
+		var stale_success := VALID_SUCCESS.duplicate()
+		stale_success["request_id"] = payload["request_id"]
+		stale_success["conversation_id"] = payload["conversation_id"]
+		stale_success["npc_id"] = current_npc
+		stale_success["reply"] = "stale reply %d" % index
+		client.handle_response(
+			generation,
+			HTTPRequest.RESULT_SUCCESS,
+			200,
+			JSON.stringify(stale_success).to_utf8_buffer(),
+		)
+		_assert_equal(client.state, &"idle", "rapid stale callback remains inert")
+		_assert_equal(client.latest_reply, "", "rapid stale reply remains hidden")
+		_assert_equal(client.latest_trace_id, "", "rapid stale trace remains hidden")
+		_assert_false(client.can_retry(), "rapid switch never retains Retry")
+	_assert_equal(conversations.size(), 31, "every rapid switch creates a conversation")
+	_assert_equal(request_ids.size(), 30, "every rapid Send creates a request id")
+	client.free()
+
+
 func _test_late_callback_cannot_override_new_generation(client_script: Script) -> void:
 	var client: Node = client_script.new()
 	var bodies: Array[String] = []
@@ -420,6 +566,71 @@ func _test_relationship_snapshot_contract(relationship_client_script: Script) ->
 	client.free()
 
 
+func _test_relationship_switch_replaces_scope_and_suppresses_late_snapshot(
+	relationship_client_script: Script
+) -> void:
+	var client: Node = relationship_client_script.new()
+	var urls: Array[String] = []
+	client.set_request_sender_for_testing(func(url: String, _headers: PackedStringArray) -> int:
+		urls.append(url)
+		return OK
+	)
+	_assert_true(client.refresh(), "default Nia relationship refresh starts")
+	var stale_generation: int = client.active_generation()
+	_assert_true(client.switch_npc("signal_archivist"), "relationship switches to Ivo")
+	_assert_equal(client.active_npc_id(), "signal_archivist", "relationship active NPC is Ivo")
+	_assert_false(client.has_verified_snapshot, "old verified relationship is cleared")
+	_assert_true(client.latest_event.is_empty(), "old relationship event is cleared")
+	_assert_equal(client.score, 20, "new NPC returns to initial score while loading")
+	_assert_true(client.refresh(), "Ivo relationship refresh starts")
+	var current_generation: int = client.active_generation()
+
+	var nia_snapshot := {
+		"npc_id": "neon_guide",
+		"score": 99,
+		"stage": "trusted_ally",
+		"rule_version": "f-006-v1",
+		"event": null,
+	}
+	client.handle_response(
+		stale_generation,
+		HTTPRequest.RESULT_SUCCESS,
+		200,
+		PackedStringArray(["Content-Type: application/json"]),
+		JSON.stringify(nia_snapshot).to_utf8_buffer(),
+	)
+	_assert_equal(client.state, &"loading", "late Nia relationship cannot overwrite Ivo loading")
+	_assert_equal(client.score, 20, "late Nia score remains inert")
+
+	var ivo_snapshot := {
+		"npc_id": "signal_archivist",
+		"score": 21,
+		"stage": "acquaintance",
+		"rule_version": "f-006-v1",
+		"event": null,
+	}
+	client.handle_response(
+		current_generation,
+		HTTPRequest.RESULT_SUCCESS,
+		200,
+		PackedStringArray(["Content-Type: application/json"]),
+		JSON.stringify(ivo_snapshot).to_utf8_buffer(),
+	)
+	_assert_equal(client.state, &"available", "active Ivo relationship is accepted")
+	_assert_equal(client.score, 21, "active Ivo score is retained")
+	_assert_equal(
+		urls,
+		[
+			"http://127.0.0.1:8000/api/v1/relationships/local_player/neon_guide",
+			"http://127.0.0.1:8000/api/v1/relationships/local_player/signal_archivist",
+		],
+		"relationship requests use only their active NPC paths",
+	)
+	_assert_false(client.switch_npc("unknown_npc"), "unknown relationship NPC fails closed")
+	_assert_equal(client.active_npc_id(), "signal_archivist", "invalid relationship switch is inert")
+	client.free()
+
+
 func _test_scene_contract() -> void:
 	_assert_equal(
 		ProjectSettings.get_setting("application/run/main_scene"),
@@ -434,6 +645,8 @@ func _test_scene_contract() -> void:
 	_assert_true(scene is Control, "dialogue scene root is Control")
 	for path in [
 		"CenterContainer/VBoxContainer/TitleLabel",
+		"CenterContainer/VBoxContainer/NpcRow/NpcLabel",
+		"CenterContainer/VBoxContainer/NpcRow/NpcSelector",
 		"CenterContainer/VBoxContainer/StatusLabel",
 		"CenterContainer/VBoxContainer/ReplyLabel",
 		"CenterContainer/VBoxContainer/MessageInput",
@@ -458,11 +671,11 @@ func _test_scene_contract() -> void:
 	var relationship_label: Label = scene.get_node("CenterContainer/VBoxContainer/RelationshipLabel")
 	var client: Node = scene.get_node("DialogueClient")
 	var relationship_client: Node = scene.get_node("RelationshipClient")
-	_assert_equal(title.text, "Nia", "fixed NPC display name")
+	_assert_equal(title.text, "Nia", "default NPC display name")
 	_assert_equal(status.text, "Send a message to Nia", "frozen idle message")
-	_assert_equal(content.get_theme_constant("separation"), 4, "relationship content fits the fixed viewport")
+	_assert_equal(content.get_theme_constant("separation"), 2, "two-line reply fits the viewport")
 	_assert_equal(input.placeholder_text, "Type your message…", "frozen input placeholder")
-	_assert_equal(input.custom_minimum_size.y, 64.0, "relationship reason remains visible below input")
+	_assert_equal(input.custom_minimum_size.y, 36.0, "two-line reply and relationship reason fit")
 	_assert_equal(send.text, "Send", "send button text")
 	_assert_equal(retry.text, "Retry", "retry button text")
 	_assert_equal(relationship_label.text, "Relationship: loading…", "relationship loading contract")
@@ -491,15 +704,24 @@ func _test_rendered_scene_interaction(scene: Node, client: Node) -> void:
 	_root.add_child(scene)
 
 	var status: Label = scene.get_node("CenterContainer/VBoxContainer/StatusLabel")
+	var title: Label = scene.get_node("CenterContainer/VBoxContainer/TitleLabel")
+	var selector: OptionButton = scene.get_node("CenterContainer/VBoxContainer/NpcRow/NpcSelector")
 	var reply: Label = scene.get_node("CenterContainer/VBoxContainer/ReplyLabel")
 	var input: TextEdit = scene.get_node("CenterContainer/VBoxContainer/MessageInput")
 	var count: Label = scene.get_node("CenterContainer/VBoxContainer/CharacterCountLabel")
 	var send: Button = scene.get_node("CenterContainer/VBoxContainer/ButtonRow/SendButton")
 	var retry: Button = scene.get_node("CenterContainer/VBoxContainer/ButtonRow/RetryButton")
 	var trace: Label = scene.get_node("CenterContainer/VBoxContainer/TraceLabel")
+	var relationship_label: Label = scene.get_node(
+		"CenterContainer/VBoxContainer/RelationshipLabel"
+	)
 	var request_node: HTTPRequest = scene.get_node("DialogueClient/HTTPRequest")
 	_assert_equal(request_node.timeout, 15.0, "HTTPRequest uses the locked timeout")
 	_assert_equal(request_node.max_redirects, 0, "HTTPRequest does not follow redirects")
+	_assert_equal(selector.item_count, 3, "selector exposes exactly three approved NPCs")
+	for expected: Array in [[0, "Nia", "neon_guide"], [1, "Ivo", "signal_archivist"], [2, "Rhea", "night_courier"]]:
+		_assert_equal(selector.get_item_text(expected[0]), expected[1], "selector display name")
+		_assert_equal(selector.get_item_metadata(expected[0]), expected[2], "selector NPC id")
 
 	input.text = "hello Nia"
 	input.text_changed.emit()
@@ -539,6 +761,30 @@ func _test_rendered_scene_interaction(scene: Node, client: Node) -> void:
 	_assert_true(reply.visible, "reply becomes visible on success")
 	_assert_equal(trace.text, "Trace: %s" % TRACE_ID, "UI shows the safe trace identifier")
 	_assert_false(retry.visible, "Retry hidden after successful completion")
+
+	var nia_conversation: String = String(sent_payload["conversation_id"])
+	selector.select(1)
+	selector.item_selected.emit(1)
+	_assert_equal(title.text, "Ivo", "switch renders the selected NPC name")
+	_assert_equal(status.text, "Send a message to Ivo", "switch renders the selected idle state")
+	_assert_false(reply.visible, "switch clears the previous NPC reply")
+	_assert_false(trace.visible, "switch clears the previous NPC trace")
+	_assert_false(retry.visible, "switch clears the previous NPC Retry")
+	_assert_equal(input.text, "", "switch clears the previous NPC input")
+	_assert_equal(count.text, "0 / 1000", "switch resets the character count")
+	_assert_equal(relationship_label.text, "Relationship: loading…", "switch clears relationship")
+	_assert_false(selector.disabled, "selector is released after synchronous scope replacement")
+	_assert_false(send.disabled, "Send is released for the new NPC")
+
+	input.text = "hello Ivo"
+	input.text_changed.emit()
+	send.pressed.emit()
+	var ivo_payload: Dictionary = JSON.parse_string(bodies[2])
+	_assert_equal(ivo_payload["npc_id"], "signal_archivist", "UI sends the selected NPC id")
+	_assert_true(
+		String(ivo_payload["conversation_id"]) != nia_conversation,
+		"UI switch creates a new conversation id",
+	)
 
 
 func _response(model: RefCounted, response_code: int, payload: Dictionary) -> Dictionary:
