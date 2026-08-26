@@ -59,7 +59,6 @@ if TYPE_CHECKING:
     from cyber_town.application.relationship import RelationshipService
 
 LOGGER = logging.getLogger("cyber_town.dialogue")
-SAFE_FALLBACK_REPLY = "Nia pauses, keeping the conversation within safe boundaries."
 NO_HISTORY_REPLY_ZH = "当前会话中还没有你先前告诉我的信息\uff0c因此我不知道。"
 NO_HISTORY_REPLY_EN = "You have not told me that in this conversation yet, so I do not know."
 _HISTORY_REFERENCE_MARKERS = (
@@ -742,7 +741,10 @@ class DialogueService:
 
         if completion.finish_reason == "content_filter":
             return _DialogueResult(
-                reply=SAFE_FALLBACK_REPLY,
+                reply=(
+                    f"{persona.display_name} pauses, keeping the conversation within "
+                    "safe boundaries."
+                ),
                 status=DialogueStatus.DEGRADED,
                 provider="local-fallback",
                 provider_model=completion.model,

@@ -3,7 +3,7 @@
 ## 项目定位与阶段
 
 - 等级：L（多模块、Agent、状态持久化、安全与可观测性）。
-- 当前阶段：`git_delivery_authorized / F-006_deterministic_affection`。F-001—F-005 已分别通过 PR #1—#5 交付并归档；F-005 已合并到当前 `main` / `origin/main` 的 `c9d11b0a3c441a10463ad4522bb226f055f07f35`。F-006 的任务合同、追加 SQLite `0002`、确定性规则、关系 GET、低保真 Godot 展示、fake-only 对抗/性质评估、黑盒 QA、视口修复和用户 UAT 已完成；最终 fake-only 本地门禁亦通过。用户已授权 Git 交付；仍不得进入 R-07、读取 `.env`、调用真实模型或复用 F-005 资源。
+- 当前阶段：`git_delivery_authorized / F-007_multi_npc_isolation`。F-001—F-006 已分别通过 PR #1—#6 交付并归档；F-006 已由 PR #6 squash merge 到 `main` / `origin/main` 的 `3c2059aad7ef5a1e9dd0154ad49d2b0e93f8f47f`。F-007 Step 0—7、三 NPC 隔离、fake-only 独立 QA、最小视口修复、用户 UAT 与最终本地门禁均已完成；用户已授权 Git 交付。仍不得读取 `.env`、调用真实模型或复用 F-005 验收资源。
 - 本项目是 Agent 工程学习项目，同时交付可运行、可交互、可验证的 AI NPC 小镇。
 
 ## 关键边界
@@ -13,7 +13,7 @@
 - NPC 的 persona 与玩家关系按 `npc_id + player_id` 隔离；F-004 短期工作记忆必须完整使用 `player_id + npc_id + conversation_id` 三元 scope；模型客户端可共享。
 - LLM 输出是未可信输入：必须经 schema、策略和确定性规则校验，不能直接写入游戏状态。
 - 不把完整聊天记录或向量相似度当作长期记忆；不将原始敏感对话写入普通日志。
-- 首版只做玩家—单 NPC 对话，不引入 NPC 自主协作、批量生成或 WebSocket。
+- 当前只做玩家与所选固定 NPC 的一对一对话，不引入 NPC 自主协作、批量生成或 WebSocket。
 
 ## 工作方式
 

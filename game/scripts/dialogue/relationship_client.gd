@@ -2,6 +2,8 @@ extends Node
 
 signal snapshot_changed(state: StringName)
 
+const NpcRegistry = preload("res://scripts/dialogue/npc_registry.gd")
+
 const IDLE: StringName = &"idle"
 const LOADING: StringName = &"loading"
 const AVAILABLE: StringName = &"available"
@@ -38,10 +40,47 @@ var last_failure := ""
 var _generation := 0
 var _request_in_flight := false
 var _pending_request_id := ""
+var _request_sender := Callable()
+var _active_completion := Callable()
+var _npc_registry := NpcRegistry.new()
+var _active_npc_id := NpcRegistry.DEFAULT_NPC_ID
 
 
 func _ready() -> void:
 	_http_request.timeout = timeout_seconds
+
+
+func set_request_sender_for_testing(sender: Callable) -> void:
+	_request_sender = sender
+
+
+func active_generation() -> int:
+	return _generation
+
+
+func active_npc_id() -> String:
+	return _active_npc_id
+
+
+func switch_npc(npc_id: String) -> bool:
+	if not _npc_registry.is_allowed(npc_id):
+		return false
+	if npc_id == _active_npc_id:
+		return true
+	if _request_in_flight and is_instance_valid(_http_request):
+		_disconnect_active_completion()
+		_http_request.cancel_request()
+	_generation += 1
+	_request_in_flight = false
+	_pending_request_id = ""
+	_active_npc_id = npc_id
+	score = 20
+	stage = "acquaintance"
+	latest_event = {}
+	has_verified_snapshot = false
+	last_failure = ""
+	_set_state(IDLE)
+	return true
 
 
 func refresh(request_id := "") -> bool:
@@ -51,15 +90,22 @@ func refresh(request_id := "") -> bool:
 	_generation += 1
 	_request_in_flight = true
 	_set_state(LOADING)
-	var url := relationship_url + "/local_player/neon_guide"
+	var url := relationship_url + "/local_player/" + _active_npc_id
 	if not request_id.is_empty():
 		url += "?request_id=" + request_id.uri_encode()
-	var completion := _on_request_completed.bind(_generation)
-	_http_request.request_completed.connect(completion, CONNECT_ONE_SHOT)
-	var dispatch_error := _http_request.request(url, PackedStringArray(["Accept: application/json"]))
+	var headers := PackedStringArray(["Accept: application/json"])
+	var dispatch_error: int
+	if _request_sender.is_valid():
+		dispatch_error = int(_request_sender.call(url, headers))
+	elif is_instance_valid(_http_request):
+		_active_completion = _on_request_completed.bind(_generation)
+		_http_request.request_completed.connect(_active_completion, CONNECT_ONE_SHOT)
+		dispatch_error = _http_request.request(url, headers)
+		if dispatch_error != OK:
+			_disconnect_active_completion()
+	else:
+		dispatch_error = ERR_UNCONFIGURED
 	if dispatch_error != OK:
-		if _http_request.request_completed.is_connected(completion):
-			_http_request.request_completed.disconnect(completion)
 		_request_in_flight = false
 		_set_state(UNAVAILABLE)
 		return false
@@ -72,6 +118,17 @@ func _on_request_completed(
 	headers: PackedStringArray,
 	body: PackedByteArray,
 	generation: int,
+) -> void:
+	_active_completion = Callable()
+	handle_response(generation, result, response_code, headers, body)
+
+
+func handle_response(
+	generation: int,
+	result: int,
+	response_code: int,
+	headers: PackedStringArray,
+	body: PackedByteArray,
 ) -> void:
 	if not _request_in_flight or generation != _generation:
 		return
@@ -110,7 +167,7 @@ func _is_valid_snapshot(payload: Dictionary) -> bool:
 			return false
 	if (
 		typeof(payload["npc_id"]) != TYPE_STRING
-		or String(payload["npc_id"]) != "neon_guide"
+		or String(payload["npc_id"]) != _active_npc_id
 		or not _is_integer_in_range(payload["score"], 0, 100)
 		or typeof(payload["stage"]) != TYPE_STRING
 		or not String(payload["stage"]) in STAGES
@@ -175,3 +232,13 @@ func _dispatch_pending_refresh() -> void:
 	var request_id := _pending_request_id
 	_pending_request_id = ""
 	call_deferred("refresh", request_id)
+
+
+func _disconnect_active_completion() -> void:
+	if (
+		_active_completion.is_valid()
+		and is_instance_valid(_http_request)
+		and _http_request.request_completed.is_connected(_active_completion)
+	):
+		_http_request.request_completed.disconnect(_active_completion)
+	_active_completion = Callable()

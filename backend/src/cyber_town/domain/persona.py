@@ -5,13 +5,16 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+from collections.abc import Mapping
 from functools import lru_cache
 from importlib import resources
+from types import MappingProxyType
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, StringConstraints
 
 PERSONA_FILENAME = re.compile(r"^[a-z0-9_]+\.json$")
+BUNDLED_PERSONA_FILENAMES = ("nia_v1.json", "ivo_v1.json", "rhea_v1.json")
 PersonaIdentifier = Annotated[
     str,
     StringConstraints(strict=True, strip_whitespace=True, min_length=1, max_length=64),
@@ -54,6 +57,25 @@ def load_bundled_persona(filename: str) -> PersonaDefinition:
 
     raw = resources.files("cyber_town.domain.personas").joinpath(filename).read_bytes()
     return parse_persona_bytes(raw)
+
+
+@lru_cache(maxsize=1)
+def load_bundled_personas() -> Mapping[str, PersonaDefinition]:
+    """Load the complete fixed NPC allowlist as an immutable mapping."""
+
+    if len(set(BUNDLED_PERSONA_FILENAMES)) != len(BUNDLED_PERSONA_FILENAMES):
+        raise ValueError("Bundled persona registry has duplicate filename")
+    personas = tuple(load_bundled_persona(filename) for filename in BUNDLED_PERSONA_FILENAMES)
+    npc_ids = tuple(persona.npc_id for persona in personas)
+    versions = tuple(persona.version for persona in personas)
+    display_names = tuple(persona.display_name for persona in personas)
+    if len(set(npc_ids)) != len(npc_ids):
+        raise ValueError("Bundled persona registry has duplicate npc_id")
+    if len(set(versions)) != len(versions):
+        raise ValueError("Bundled persona registry has duplicate version")
+    if len(set(display_names)) != len(display_names):
+        raise ValueError("Bundled persona registry has duplicate display_name")
+    return MappingProxyType({persona.npc_id: persona for persona in personas})
 
 
 def parse_persona_bytes(raw: bytes) -> PersonaDefinition:

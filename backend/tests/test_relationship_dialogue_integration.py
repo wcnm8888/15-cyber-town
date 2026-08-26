@@ -104,10 +104,11 @@ async def test_completed_dialogue_records_one_relationship_event_and_get_keeps_v
 async def test_relationship_get_fails_closed_without_service_or_valid_query() -> None:
     application = create_app()
     operation = application.openapi()["paths"]["/api/v1/relationships/{player_id}/{npc_id}"]["get"]
-    assert {
-        (parameter["name"], parameter["in"])
-        for parameter in operation["parameters"]
-    } == {("player_id", "path"), ("npc_id", "path"), ("request_id", "query")}
+    assert {(parameter["name"], parameter["in"]) for parameter in operation["parameters"]} == {
+        ("player_id", "path"),
+        ("npc_id", "path"),
+        ("request_id", "query"),
+    }
 
     transport = ASGITransport(app=application)
     async with AsyncClient(transport=transport, base_url="http://testserver") as client:
@@ -127,6 +128,77 @@ async def test_relationship_get_fails_closed_without_service_or_valid_query() ->
         "code": "validation_error",
         "message": "Relationship request validation failed.",
         "retryable": False,
+    }
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "npc_path",
+    [
+        "unknown_npc",
+        "NEON_GUIDE",
+        "neon_guid\u0435",
+        "\uff4e\uff45\uff4f\uff4e\uff3f\uff47\uff55\uff49\uff44\uff45",
+        "%20neon_guide",
+        "neon_guide%09",
+        "neon_guide%C2%A0",
+        "neon_guide%0Asignal_archivist",
+        "neon_guide%00",
+        "neon-guide",
+        "neon.guide",
+        "neon_guide%3Fother=signal_archivist",
+        "neon_guide%2F..%2Fsignal_archivist",
+    ],
+)
+async def test_relationship_get_rejects_unapproved_npc_before_repository_read(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    npc_path: str,
+) -> None:
+    repository = SqliteRelationshipRepository(
+        database_path=tmp_path / "isolated.sqlite3", allowed_root=tmp_path
+    )
+    repository.initialize()
+
+    def unexpected_repository_read(*_args: object, **_kwargs: object) -> None:
+        pytest.fail("unapproved relationship NPC reached the repository")
+
+    monkeypatch.setattr(repository, "get_state", unexpected_repository_read)
+    monkeypatch.setattr(repository, "event_for_request", unexpected_repository_read)
+    application = create_app(relationship_service=RelationshipService(repository=repository))
+
+    transport = ASGITransport(app=application)
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        response = await client.get(f"/api/v1/relationships/local_player/{npc_path}")
+
+    assert response.status_code in {404, 422}
+    if response.status_code == 422:
+        assert response.json()["code"] == "validation_error"
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("npc_id", ["neon_guide", "signal_archivist", "night_courier"])
+async def test_relationship_get_accepts_every_fixed_persona(
+    tmp_path: Path,
+    npc_id: str,
+) -> None:
+    repository = SqliteRelationshipRepository(
+        database_path=tmp_path / "isolated.sqlite3", allowed_root=tmp_path
+    )
+    repository.initialize()
+    application = create_app(relationship_service=RelationshipService(repository=repository))
+
+    transport = ASGITransport(app=application)
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        response = await client.get(f"/api/v1/relationships/local_player/{npc_id}")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "npc_id": npc_id,
+        "score": 20,
+        "stage": "acquaintance",
+        "rule_version": "f-006-v1",
+        "event": None,
     }
 
 

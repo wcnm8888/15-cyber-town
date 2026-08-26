@@ -14,6 +14,7 @@ from cyber_town.contracts.relationship import (
     RelationshipEventSummaryV1,
     RelationshipResponseV1,
 )
+from cyber_town.domain.persona import load_bundled_personas
 from cyber_town.domain.relationship import RelationshipScope
 from cyber_town.infrastructure.persistence.sqlite_relationship import RelationshipStorageError
 
@@ -80,6 +81,8 @@ def _request_values(
     ):
         raise ValueError("Relationship query is invalid")
     RelationshipScope(player_id, npc_id)
+    if npc_id not in load_bundled_personas():
+        raise ValueError("Relationship NPC is not approved")
     if raw_request_id is None:
         return player_id, npc_id, None
     parsed = UUID(raw_request_id)

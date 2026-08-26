@@ -14,10 +14,10 @@
 
 ## 处理管线
 
-当前 F-005 管线分两条确定性路径：
+当前记忆管线以 F-005 为基线，并由 F-007 扩展到固定三 persona；仍分两条确定性路径：
 
 1. 显式管理：严格公开 Dialogue v1 → 冻结中英文记住/永久记住/忘记命令 → `(player_id, npc_id)` → SQLite `BEGIN IMMEDIATE`、request 指纹幂等、容量/TTL/版本/tombstone → 返回现有 `completed / local-memory`；此路径不调用 provider，也不把命令写成短期历史。
-2. 普通对话：严格三元 conversation scope → 只检索同 `(player_id, npc_id)`、active、未过期且 `confidence > 0` 的相关长期事实 → 精确 key 优先于固定别名，按 importance/confidence/updated_at/memory_id 确定性排序 → 统一 UTF-8 工程预算 → 唯一 Nia system + 明确标为不可信的长期事实 user 数据 + 完整短期 user/assistant + 当前 user → provider 校验成功后原子提交一个完整短期回合。
+2. 普通对话：严格三元 conversation scope → 只检索同 `(player_id, npc_id)`、active、未过期且 `confidence > 0` 的相关长期事实 → 精确 key 优先于固定别名，按 importance/confidence/updated_at/memory_id 确定性排序 → 统一 UTF-8 工程预算 → 与当前 `npc_id` 严格对应的唯一 persona system + 明确标为不可信的长期事实 user 数据 + 完整短期 user/assistant + 当前 user → provider 校验成功后原子提交一个完整短期回合。
 
 长期只允许 `game_alias`、`preferred_language`、`reply_style`、`favorite_cyber_town_topic`；topic 仅接受冻结的中英文 Cyber Town 低敏感话题许可词汇，而非开放文本加禁止词黑名单。conversation/request/trace 仅作为来源，不影响同 player/NPC 跨 conversation 与服务重启召回。更新保持 `memory_id` 并递增 version，遗忘清空事实正文；同一 `(player_id, npc_id)` 的所有 conversation 都必须按 NFKC/casefold 清除含旧值的完整短期 user/assistant 回合，其他 player/NPC 不受影响。
 

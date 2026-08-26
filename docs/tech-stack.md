@@ -4,7 +4,7 @@
 | --- | --- | --- | --- | --- |
 | 游戏前端 | Godot 4.7.2 Standard + GDScript | 2D 场景、输入、动画和 UI | Web/Unity；Godot 学习成本低且适合目标 | F-002 诊断场景与 F-003 独立对话场景均已验证；对话采用 `HTTPRequest`、15 秒 timeout、单在途和手动 retry，无 addon、.NET 或 export templates。 |
 | API | Python 3.12 + FastAPI 0.141.1 + Pydantic v2 | schema、错误语义、异步编排、OpenAPI | Flask/Starlette；FastAPI 需谨慎处理阻塞库 | 已锁定 Uvicorn 0.52.4、HTTPX 0.28.1；实现 `GET /api/v1/health` 与严格 `POST /api/v1/dialogue`。 |
-| LLM | DeepSeek `deepseek-v4-flash` + OpenAI SDK 3.3.1，经 Provider adapter | 固定 Nia 的角色化多轮对话与受限事实召回 | 其他 OpenAI-compatible 模型；成本和可用性外部化 | 固定 non-thinking/non-stream、temperature 0.6、max tokens 256、12 秒 timeout 和零 SDK retry；F-005 专项授权的真实长期记忆评估已通过，7 次/USD 0.000690。 |
+| LLM | DeepSeek `deepseek-v4-flash` + OpenAI SDK 3.3.1，经 Provider adapter | Nia/Ivo/Rhea 固定 persona 的角色化多轮对话与受限事实召回 | 其他 OpenAI-compatible 模型；成本和可用性外部化 | 固定 non-thinking/non-stream、temperature 0.6、max tokens 256、12 秒 timeout 和零 SDK retry；F-007 自动化保持 fake-only，F-005 专项授权的真实长期记忆评估已通过，7 次/USD 0.000690。 |
 | Agent runtime | 自建轻量领域运行时 | 显式控制上下文、状态、日志和安全边界 | HelloAgents；后者适合作为学习对照 | 倾向自建；先做 provider/agent 端口，避免框架锁定。 |
 | 结构化状态 | Python 3.12 标准库 `sqlite3` | 低敏感长期事实、事务幂等、过期/遗忘及独立真实调用预算台账 | PostgreSQL；留给多人/部署阶段 | F-005 已实现受限 schema/repository、默认启动装配、`BEGIN IMMEDIATE`、2 秒 busy timeout、双元 scope 和 metadata-only 台账；自动化隔离 composition 项目根及 pytest 临时数据库，真实专项使用 Git 忽略的独立验收库与台账；旧测试误创建的正式路径文件已按用户专项授权定向删除。 |
 | 语义记忆 | F-005 不引入 Qdrant、embedding 或 FTS | 只有规则检索出现经验证缺口时才评估语义召回 | SQLite FTS、Qdrant local/remote；增加 embedding、运维和隐私成本 | 固定 72 项结构化 golden set precision/recall 均 1.00；没有引入第二存储的当前依据。 |

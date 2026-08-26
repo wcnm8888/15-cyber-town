@@ -10,7 +10,7 @@
 | 持久化 | SQLite 约束、事务、重启恢复、scope 隔离与迁移 | 数据生命周期和备份审查 |
 | Godot | GDScript 可加载、API 客户端错误/加载状态、单场景流程 | 最小场景操作录像/截图、Godot 控制台检查 |
 | 安全 | 注入、敏感内容、越权、日志脱敏、限流负向案例 | 人工 red-team 清单 |
-| 端到端 | 单 NPC 成功、失败、超时、重试、隔离回归场景 | 试玩者按脚本完成 UAT |
+| 端到端 | 当前所选固定 NPC 的成功、失败、超时、重试及跨 NPC 隔离回归场景 | 试玩者按脚本完成 UAT |
 
 ## 任务门禁
 
@@ -20,7 +20,7 @@ UI 必须经过设计稿确认、冻结参考、同尺寸真实截图、用户�
 
 ### 当前统一入口
 
-运行 `uv run --frozen python scripts/quality.py`。入口先执行 ignore/敏感信息预检，再执行 lock freshness、ruff、mypy、schema drift、Godot editor import、GDScript 单测、9 个健康 loopback、10 个对话/关系 fake loopback 和 pytest，最后复查仓库策略。每个子进程禁用 dotenv、移除继承的 provider key 并固定 provider 为 disabled；不需要真实凭证、真实 LLM、外部数据库或业务外部服务，持久化测试只使用 pytest 或短生命周期 loopback 隔离 SQLite。
+运行 `uv run --frozen python scripts/quality.py`。入口先执行 ignore/敏感信息预检，再执行 lock freshness、ruff、mypy、schema drift、Godot editor import、GDScript 单测、9 个健康 loopback、10 个对话/关系 fake loopback、1 个三 NPC 切换 loopback 和 pytest，最后复查仓库策略。每个子进程禁用 dotenv、移除继承的 provider key 并固定 provider 为 disabled；不需要真实凭证、真实 LLM、外部数据库或业务外部服务，持久化测试只使用 pytest 或短生命周期 loopback 隔离 SQLite。
 
 负向测试覆盖：worktree/index 内容分叉、staged/missing `.gitignore`、symlink/异常 mode、大小写与多种配置语法凭证键、精确 placeholder、BOM/非 UTF-8/超大文本、二进制魔数伪装、结构化配置重复键/递归/过深输入 fail-closed、敏感预检顺序、子命令缺失与失败传播、配置环境隔离、未知/多余 schema drift，以及用 Draft 2020-12 validator 在不依赖可选 format assertion 的情况下验证合法与非法 request/response/error fixtures。socket monkeypatch 只证明本地策略 helper 不触网；统一入口的离线边界由命令白名单、无外部服务配置和独立 QA 共同验证，不把该单元测试夸大为操作系统级断网证明。
 

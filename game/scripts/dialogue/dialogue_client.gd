@@ -3,6 +3,7 @@ extends Node
 signal state_changed(state: StringName)
 
 const DialogueState = preload("res://scripts/dialogue/dialogue_state.gd")
+const NpcRegistry = preload("res://scripts/dialogue/npc_registry.gd")
 
 @export var dialogue_url := "http://127.0.0.1:8000/api/v1/dialogue"
 @export_range(0.1, 60.0, 0.1) var timeout_seconds := 15.0
@@ -15,6 +16,8 @@ var latest_trace_id := ""
 var latest_status := ""
 
 var _state_model := DialogueState.new()
+var _npc_registry := NpcRegistry.new()
+var _active_npc_id := NpcRegistry.DEFAULT_NPC_ID
 var _conversation_id := ""
 var _frozen_payload_json := ""
 var _frozen_message := ""
@@ -22,6 +25,7 @@ var _generation := 0
 var _request_in_flight := false
 var _retry_allowed := false
 var _request_sender := Callable()
+var _active_completion := Callable()
 
 
 func _init() -> void:
@@ -37,6 +41,38 @@ func set_request_sender_for_testing(sender: Callable) -> void:
 	_request_sender = sender
 
 
+func active_npc_id() -> String:
+	return _active_npc_id
+
+
+func active_display_name() -> String:
+	return _npc_registry.display_name_for(_active_npc_id)
+
+
+func conversation_id() -> String:
+	return _conversation_id
+
+
+func switch_npc(npc_id: String) -> bool:
+	if not _npc_registry.is_allowed(npc_id):
+		return false
+	if npc_id == _active_npc_id:
+		return true
+	if _request_in_flight and is_instance_valid(_http_request):
+		_disconnect_active_completion()
+		_http_request.cancel_request()
+	_generation += 1
+	_request_in_flight = false
+	_active_npc_id = npc_id
+	_conversation_id = _generate_uuid()
+	_clear_retry_context()
+	latest_reply = ""
+	latest_trace_id = ""
+	latest_status = ""
+	_set_state(DialogueState.IDLE)
+	return true
+
+
 func begin_send(message: String) -> bool:
 	if _request_in_flight:
 		return false
@@ -49,7 +85,7 @@ func begin_send(message: String) -> bool:
 	var payload := {
 		"request_id": _generate_uuid(),
 		"player_id": "local_player",
-		"npc_id": "neon_guide",
+		"npc_id": _active_npc_id,
 		"conversation_id": _conversation_id,
 		"message": normalized,
 	}
@@ -140,16 +176,16 @@ func _dispatch(is_retry: bool) -> bool:
 			)
 		)
 	elif is_instance_valid(_http_request):
-		var completion := _on_request_completed.bind(_generation)
-		_http_request.request_completed.connect(completion, CONNECT_ONE_SHOT)
+		_active_completion = _on_request_completed.bind(_generation)
+		_http_request.request_completed.connect(_active_completion, CONNECT_ONE_SHOT)
 		dispatch_error = _http_request.request(
 			dialogue_url,
 			headers,
 			HTTPClient.METHOD_POST,
 			_frozen_payload_json,
 		)
-		if dispatch_error != OK and _http_request.request_completed.is_connected(completion):
-			_http_request.request_completed.disconnect(completion)
+		if dispatch_error != OK:
+			_disconnect_active_completion()
 	else:
 		dispatch_error = ERR_UNCONFIGURED
 
@@ -168,6 +204,7 @@ func _on_request_completed(
 	body: PackedByteArray,
 	generation: int,
 ) -> void:
+	_active_completion = Callable()
 	handle_response(generation, result, response_code, body, headers)
 
 
@@ -175,6 +212,16 @@ func _clear_retry_context() -> void:
 	_retry_allowed = false
 	_frozen_payload_json = ""
 	_frozen_message = ""
+
+
+func _disconnect_active_completion() -> void:
+	if (
+		_active_completion.is_valid()
+		and is_instance_valid(_http_request)
+		and _http_request.request_completed.is_connected(_active_completion)
+	):
+		_http_request.request_completed.disconnect(_active_completion)
+	_active_completion = Callable()
 
 
 func _set_state(next_state: StringName) -> void:
