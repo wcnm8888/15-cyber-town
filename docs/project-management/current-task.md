@@ -2,7 +2,7 @@
 
 状态：`delivered / archived / no_active_task`。
 
-F-008《可观测性与 Agent 评估》已完成 Step 0—7、restart-recovery P1、独立 fake-only QA、用户 Godot/CLI UAT、最终本地门禁和 Git 交付。最终统一门禁为 `1418 passed`；PR #11 的 GitHub Linux `quality` 通过后，功能 squash merge 提交为 `c78f1c190bd3a3753e849aa7da76c88dbf5c27b2`，任务卡与实施计划随后由独立文档 PR 归档。
+F-008《可观测性与 Agent 评估》已完成 Step 0—7、restart-recovery P1、独立 fake-only QA、用户 Godot/CLI UAT、最终本地门禁和 Git 交付。最终统一门禁为 `1418 passed`；PR #11 的 GitHub Linux `quality` 通过后，功能 squash merge 提交为 `c78f1c190bd3a3753e849aa7da76c88dbf5c27b2`，任务卡与实施计划随后由 PR #12 归档。
 
 完整任务卡见 [`../archive/task-cards/F-008-observability-agent-evaluation.md`](../archive/task-cards/F-008-observability-agent-evaluation.md)，实施计划见 [`../archive/task-cards/F-008-implementation-plan.md`](../archive/task-cards/F-008-implementation-plan.md)。
 

@@ -2,7 +2,7 @@
 
 状态：`archived / delivered / 2026-08-26`。
 
-来源：已批准路线图的 `R-09`。用户已于 2026-08-26 批准并完成 Step 0—7、restart-recovery P1 最小修复、独立 fake-only QA、用户 Godot/CLI UAT 与最终本地门禁。四个可二分功能提交经 PR #11 的 GitHub Linux `quality` 通过后 squash merge 为 `c78f1c190bd3a3753e849aa7da76c88dbf5c27b2`；本任务卡随后随独立文档收口 PR 归档。
+来源：已批准路线图的 `R-09`。用户已于 2026-08-26 批准并完成 Step 0—7、restart-recovery P1 最小修复、独立 fake-only QA、用户 Godot/CLI UAT 与最终本地门禁。四个可二分功能提交经 PR #11 的 GitHub Linux `quality` 通过后 squash merge 为 `c78f1c190bd3a3753e849aa7da76c88dbf5c27b2`；本任务卡随后由 PR #12 归档。
 
 ## 用户目标与可见价值
 
