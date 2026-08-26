@@ -2,7 +2,7 @@
 
 状态：`delivered / archived / no_active_task`。
 
-F-007《多 NPC 与隔离》已完成 Step 0—7、独立 fake-only QA、用户 Godot UAT、关系 GET allowlist P1 最小修复与最终 Git 交付。最终本地统一门禁为 `1319 passed`；PR #7 的 GitHub Linux `quality` 通过后，于 2026-08-26 squash merge 到 `main` / `origin/main` 的 `a049a94ad2104a4629a8e201399bb66592319fc5`。
+F-007《多 NPC 与隔离》已完成 Step 0—7、独立 fake-only QA、用户 Godot UAT、关系 GET allowlist P1 最小修复与最终 Git 交付。最终本地统一门禁为 `1319 passed`；PR #7 的 GitHub Linux `quality` 通过后，功能 squash merge 提交为 `a049a94ad2104a4629a8e201399bb66592319fc5`，PR #8 随后完成任务卡与实施计划归档。
 
 完整任务卡见 [`../archive/task-cards/F-007-multi-npc-isolation.md`](../archive/task-cards/F-007-multi-npc-isolation.md)，实施计划见 [`../archive/task-cards/F-007-implementation-plan.md`](../archive/task-cards/F-007-implementation-plan.md)。
 

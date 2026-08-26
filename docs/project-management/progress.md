@@ -4,7 +4,7 @@
 
 - 生命周期：`delivered_and_archived / F-007_multi_npc_isolation / no_active_task`。
 - 当前能力：`origin/main` 已支持固定 Nia/Ivo/Rhea persona；短期状态按 `player_id + npc_id + conversation_id` 隔离，长期记忆与关系按 `player_id + npc_id` 隔离；Godot 提供固定 allowlist 选择、新 conversation、可见状态清空与旧回调抑制。公开 Dialogue v1 不变。
-- F-007 交付：功能/文档提交 `a02bb4c`、`2fba507`、`f381316`、`15cef84` 经 PR #7 的 GitHub Linux `quality` 通过后，于 2026-08-26 squash merge 到 `main` / `origin/main` 的 `a049a94ad2104a4629a8e201399bb66592319fc5`；任务卡与实施计划已归档。
+- F-007 交付：功能/文档提交 `a02bb4c`、`2fba507`、`f381316`、`15cef84` 经 PR #7 的 GitHub Linux `quality` 通过后，功能 squash merge 提交为 `a049a94ad2104a4629a8e201399bb66592319fc5`；任务卡与实施计划由 PR #8 归档，归档合并提交为 `59b7b8229dd3ad1d7ed82e5225b4fb1623462cb8`。
 - 最终自动化：统一 fake-only 质量入口 `1319 passed`；lock、ruff、73 文件 mypy、Schema、Godot import/unit、9 健康 + 10 对话 + 三 NPC loopback、ignore/sensitive 均通过，自动化不读取 `.env` 或调用真实 provider。
 - 检索评估：72 项固定 golden set precision `1.00`、recall `1.00`；跨 scope 泄漏、已遗忘召回、旧值复活和空结果虚构均为 0。
 - 独立 QA：首轮 5 项 P1、3 项 P2 及近邻全部失败优先修复；两名 reviewer 最终均为 `NO FINDINGS`。
@@ -30,7 +30,7 @@
 - F-007 Step 6 已完成：独立 HTTP QA 首轮确认控制空白 `npc_id` 被有损 trim 后绕过 allowlist 的 P1；用户授权后以 7 个失败优先案例修复，29 个 Unicode 空白码点/87 个组合与独立补丁复审均通过。恢复 QA 后，三 persona、短期/长期/关系 scope、重放/冲突、恶意建议、注入、跨 NPC 并发、同 scope 串行、取消晚到、服务重建及 Godot 切换均无未关闭缺陷。最终统一门禁 `1303 passed`，ruff、73 文件 mypy、schema、Godot/loopback、lock 与安全复检通过。
 - F-007 Step 7 已完成：首轮真实窗口 UAT 的三 NPC 隔离通过，但两行合法 reply 稳定复现 `Reason` 裁切 P2。失败优先回归为 `bottom=372 / viewport=360`；最小修复将 MessageInput 最低高度 `48→36`、VBox 间距 `4→2`。重新 UAT 确认 Nia/Rhea 两行回复与完整 reason 同屏、Ivo 正常、切换清空及回切 owner 快照；最终统一门禁 `1303 passed`，其余检查全绿。
 - F-007 Git 交付前 P1 已关闭：计划审计与黑盒复现确认关系 GET 对未知 NPC 返回 200 初始快照并进入 SQLite read。失败优先专项为 `5 failed, 9 passed`；最小修复在 API 边界复用固定 persona allowlist，扩展后的 13 类非法路径与 3 个合法 NPC 专项 `21 passed`、相关联合回归 `202 passed`，独立补丁复审 `NO FINDINGS`。最终统一门禁 `1319 passed`，ruff、73 文件 mypy、schema、Godot import/unit、9 健康 + 10 对话 + 三 NPC loopback、lock 与安全复检全部通过。
-- F-007 Git 交付与归档已完成：四个可二分提交推送到 `feat/f-007-multi-npc-isolation`；PR #7 的 GitHub Linux `quality` 在 1m1s 内通过，并 squash merge 为 `a049a94ad2104a4629a8e201399bb66592319fc5`。归档任务卡和实施计划保留 Step 0—7、P1/P2、UAT 与最终门禁证据。
+- F-007 Git 交付与归档已完成：四个可二分提交推送到 `feat/f-007-multi-npc-isolation`；PR #7 的 GitHub Linux `quality` 在 1m1s 内通过，并 squash merge 为 `a049a94ad2104a4629a8e201399bb66592319fc5`。PR #8 的同一 `quality` 也在 1m1s 内通过，归档合并提交为 `59b7b8229dd3ad1d7ed82e5225b4fb1623462cb8`；归档任务卡和实施计划保留 Step 0—7、P1/P2、UAT 与最终门禁证据。
 - 未覆盖：Qdrant/embedding、正式素材、真实模型评估与生产部署不在 F-007 范围。
 
 ## 下一批准动作
