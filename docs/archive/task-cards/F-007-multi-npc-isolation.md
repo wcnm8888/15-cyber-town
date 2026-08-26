@@ -1,8 +1,8 @@
 # 任务卡：F-007 多 NPC 与隔离
 
-状态：`git_delivery_authorized / pending_commit_push_pr_ci_merge_archive`。
+状态：`archived / delivered / 2026-08-26`。
 
-来源：已批准路线图的 `R-07`。用户已授权并完成 Step 0—7，且已授权 Git 交付。
+来源：已批准路线图的 `R-07`。Step 0—7 与 Git 交付均已完成；PR #7 的 GitHub Linux `quality` 通过后，于 2026-08-26 squash merge 到 `main` / `origin/main` 的 `a049a94ad2104a4629a8e201399bb66592319fc5`。
 
 ## 用户目标与可见价值
 
@@ -73,7 +73,7 @@
 | 5 | fake-only 对抗、性质评估与隔离回放 | 已完成 |
 | 6 | 独立 fake-only QA | 已完成 |
 | 7 | 用户 Godot + FakeProvider UAT、最终本地门禁 | 已完成 |
-| Git 交付 | commit、push、PR、CI、合并和归档 | 用户另行授权 |
+| Git 交付 | 四个可二分提交、push、PR #7、GitHub Linux CI、squash merge 和归档 | 已完成 |
 
 ## Step 0 基线核对与停止条件
 
@@ -81,7 +81,7 @@
 - 已确认既有后端 scope：短期 `player_id + npc_id + conversation_id`、长期记忆/关系 `player_id + npc_id`；关系 SQLite 迁移仅有既有 `0001_long_term_memory.sql` 与 `0002_relationship_state.sql`，本 Step 不修改迁移、数据库或代码。
 - 已确认既有 640×400 Godot 对话视口为单列 `VBox`，`dialogue_client.gd` 与 `relationship_client.gd` 当前均固定 Nia。上述候选选择契约明确要求后续实现消除该固定值、使用 allowlist 且隔离旧回调；本 Step 未作任何实现性改动。
 
-Step 0—7 已完成，用户已授权 Git 交付。交付期间只允许提交、推送、PR、远端 CI、合并和归档；仍禁止修改公开契约或迁移，禁止读取 `.env`、调用真实模型或访问/复用 F-005 验收资源。若用户要求多 NPC 以外的自主行为、真实模型、身份权限、正式 UI、数据迁移或部署，立即停止并要求新的架构与范围裁决。
+Step 0—7 与 Git 交付均已完成，任务卡现已归档。公开契约与迁移未变；全程未读取 `.env`、调用真实模型或访问/复用 F-005 验收资源。若用户要求多 NPC 以外的自主行为、真实模型、身份权限、正式 UI、数据迁移或部署，须以新的任务卡和架构裁决重新授权。
 
 ## 本次起草记录
 
@@ -112,3 +112,4 @@ Step 0—7 已完成，用户已授权 Git 交付。交付期间只允许提交�
 - 用户单独授权最小视口修复与重新 UAT。将 `success` fake loopback 固定为同一条两行回复后，修复前稳定失败为 `bottom=372 / viewport=360`；消息输入最低高度 `48→36` 只将其降到 366，最终同时把 VBox 间距 `4→2` 后通过。Godot unit 与 10 个既有对话场景 + 三 NPC loopback 均通过。
 - 重新真实窗口 UAT 使用全新隔离 SQLite：Nia 与 Rhea 的两行回复均和完整 `Reason: rule_friendly` 同屏，Ivo 单行路径正常；每次切换清空旧 reply/trace/input/event，回切 Nia 只保留其 `21/100` owner 快照。最终统一门禁通过：`1303 passed`、ruff、73 文件 mypy、schema、Godot import/unit、9 健康 loopback、10 对话 loopback + 三 NPC 切换、lock 与 ignore/sensitive 复检。Step 7 完成；用户随后已授权 Git 交付。
 - Git 交付前计划审计、黑盒复现和专项审查一致确认关系 GET 对未批准 `npc_id` 会进入 repository read 并返回 `200 / 20` 初始快照，违反非法 NPC 必须在持久化前 fail-closed 的合同，定级 P1；交付在提交前暂停。用户授权最小修复后，API 边界复用同一不可变 persona allowlist，13 类未知/大小写/空白/控制/路径/同形字 ID 均在 repository 前拒绝，Nia/Ivo/Rhea 保持 `200`。红测 `5 failed, 9 passed`，修复后扩展专项 `21 passed`、相关联合回归 `202 passed`，独立补丁复审 `NO FINDINGS`；最终统一门禁 `1319 passed` 且其余检查全绿。
+- Git 交付已完成：`a02bb4c`（后端）、`2fba507`（Godot）、`f381316`（任务文档）、`15cef84`（架构/测试文档）推送至 `feat/f-007-multi-npc-isolation`；PR #7 的 GitHub Linux `quality` 在 1m1s 内通过，并于 2026-08-26 squash merge 为 `a049a94ad2104a4629a8e201399bb66592319fc5`。交付与归档未读取 `.env`、未调用真实模型、未访问或复用 F-005 验收数据库/台账/预算，也未部署。

@@ -2,10 +2,10 @@
 
 ## 当前状态
 
-- 生命周期：`git_delivery_authorized / F-007_multi_npc_isolation / pending_commit_push_pr_ci_merge_archive`。
-- 当前能力：`origin/main` 仍为已交付的固定 Nia 版本；F-007 独立 worktree 已由 production composition 解析 Nia/Ivo/Rhea，通过完整后端隔离矩阵，并在既有 Godot 场景提供固定 allowlist 选择、全新 conversation、可见状态清空与旧回调抑制。公开 Dialogue v1 不变。
-- F-006 交付：功能提交 `f943af4` 已通过 PR #6 合并；当前 `origin/main` 为 `3c2059aad7ef5a1e9dd0154ad49d2b0e93f8f47f`。
-- 最终自动化：统一 fake-only 质量入口 `1095 passed`；lock、ruff、mypy、Schema、Godot import/unit、9 健康 + 10 对话 loopback、ignore/sensitive 均通过，自动化不读取 `.env` 或调用真实 provider。
+- 生命周期：`delivered_and_archived / F-007_multi_npc_isolation / no_active_task`。
+- 当前能力：`origin/main` 已支持固定 Nia/Ivo/Rhea persona；短期状态按 `player_id + npc_id + conversation_id` 隔离，长期记忆与关系按 `player_id + npc_id` 隔离；Godot 提供固定 allowlist 选择、新 conversation、可见状态清空与旧回调抑制。公开 Dialogue v1 不变。
+- F-007 交付：功能/文档提交 `a02bb4c`、`2fba507`、`f381316`、`15cef84` 经 PR #7 的 GitHub Linux `quality` 通过后，于 2026-08-26 squash merge 到 `main` / `origin/main` 的 `a049a94ad2104a4629a8e201399bb66592319fc5`；任务卡与实施计划已归档。
+- 最终自动化：统一 fake-only 质量入口 `1319 passed`；lock、ruff、73 文件 mypy、Schema、Godot import/unit、9 健康 + 10 对话 + 三 NPC loopback、ignore/sensitive 均通过，自动化不读取 `.env` 或调用真实 provider。
 - 检索评估：72 项固定 golden set precision `1.00`、recall `1.00`；跨 scope 泄漏、已遗忘召回、旧值复活和空结果虚构均为 0。
 - 独立 QA：首轮 5 项 P1、3 项 P2 及近邻全部失败优先修复；两名 reviewer 最终均为 `NO FINDINGS`。
 - 真实评估与用户 UAT：Step 5 为 7 次、1244/106 tokens、USD 0.000690；Step 7 为 3 次、500/141 tokens、USD 0.000408；合计 10 次、1744/247 tokens、USD 0.001098，pending=0，未超预算。
@@ -20,7 +20,7 @@
 - F-006 Step 6 已完成：三个临时 FakeProvider FastAPI 黑盒服务验证关系初始/成功/重放/scope/422、越权 completion 仍 inert、4 个并发 completed 请求只保留一次有效 +2；未确认产品缺陷。统一质量入口运行至既有对话 loopback，8000 已释放但终端未捕获其末行摘要；应用内浏览器拒绝 loopback 并作为工具限制记录，不替代 Step 7 UAT。临时服务均已停，正式运行时数据库不存在。
 - F-006 Step 7 已完成：最小修复将关系区内容间距设为 4、消息输入最小高度设为 64；场景/集成几何断言通过。用户 Godot + FakeProvider 窗口重新 UAT 确认 reply、`21/100`、`Acquaintance`、`Change: +1` 与完整 `Reason: rule_friendly`。交付前审查补强客户端 reason 白名单、409 冲突映射、关系 GET OpenAPI 参数和审计回放/状态表一致性校验；最终统一质量入口通过（1257 pytest、Godot import/unit、9 连通性 + 10 对话 loopback、ruff、67 文件 mypy、schema、lock、ignore/sensitive）。临时服务已停、8000 已释放，正式运行时数据库不存在。
 - F-006 Git 交付已完成：功能提交 `f943af4` 的 PR #6 已通过 GitHub Linux `quality`，并 squash merge 到 `main` / `origin/main` 的 `3c2059aad7ef5a1e9dd0154ad49d2b0e93f8f47f`；任务卡与实施计划已归档。
-- 当前 F-007《多 NPC 与隔离》已完成 Step 7；固定视口 P2 和交付前关系 GET allowlist P1 均已关闭，隔离分支为 `feat/f-007-multi-npc-isolation`，用户已授权 Git 交付。持续 fake-only，且不得读取 `.env`、调用真实模型、读取/修改/复用 F-005 验收数据库、台账或预算。
+- F-007《多 NPC 与隔离》已完成 Step 0—7、固定视口 P2 与交付前关系 GET allowlist P1 修复、Git 交付和归档。持续边界仍为 fake-only，不得读取 `.env`、调用真实模型、读取/修改/复用 F-005 验收数据库、台账或预算。
 - F-007 Step 0 已完成：F-006 merge SHA 存在于 `origin/main`；既有短期为三元 scope、长期/关系为双元 scope，既有迁移为 `0001` 与 `0002`。用户已确认 Nia、Ivo、Rhea 三 persona 及固定 640×400 Godot 选择契约。
 - F-007 Step 1 已完成：以 `origin/main` 的 `3c2059a` 创建干净隔离 worktree 与 `feat/f-007-multi-npc-isolation` 分支；新增不可变 Nia/Ivo/Rhea registry 与两份严格 persona JSON。首次身份边界测试因缺 registry 收集失败；实现后 persona、registry、dialogue application/memory 定向测试共 `86 passed`，ruff、format、mypy 与 diff 通过。API composition、Dialogue v1、迁移、长期记忆、关系、Godot、依赖与 CI 均未修改。
 - F-007 Step 2 已完成：红测 `5 failed, 6 passed` 精确暴露 Ivo/Rhea composition 404 与 Nia 降级串扰；实现三 persona composition 和 persona-aware 安全降级后，Step 2 专项 `11 passed`，相关 persona、API、短期/长期/关系回归 `219 passed`，ruff、format、mypy 与 diff 通过。未知 NPC 零 provider/持久化写入，基础三元/双元 scope 隔离通过；Dialogue v1/Schema、迁移、持久化实现、Godot、依赖和 CI 未改。
@@ -30,8 +30,9 @@
 - F-007 Step 6 已完成：独立 HTTP QA 首轮确认控制空白 `npc_id` 被有损 trim 后绕过 allowlist 的 P1；用户授权后以 7 个失败优先案例修复，29 个 Unicode 空白码点/87 个组合与独立补丁复审均通过。恢复 QA 后，三 persona、短期/长期/关系 scope、重放/冲突、恶意建议、注入、跨 NPC 并发、同 scope 串行、取消晚到、服务重建及 Godot 切换均无未关闭缺陷。最终统一门禁 `1303 passed`，ruff、73 文件 mypy、schema、Godot/loopback、lock 与安全复检通过。
 - F-007 Step 7 已完成：首轮真实窗口 UAT 的三 NPC 隔离通过，但两行合法 reply 稳定复现 `Reason` 裁切 P2。失败优先回归为 `bottom=372 / viewport=360`；最小修复将 MessageInput 最低高度 `48→36`、VBox 间距 `4→2`。重新 UAT 确认 Nia/Rhea 两行回复与完整 reason 同屏、Ivo 正常、切换清空及回切 owner 快照；最终统一门禁 `1303 passed`，其余检查全绿。
 - F-007 Git 交付前 P1 已关闭：计划审计与黑盒复现确认关系 GET 对未知 NPC 返回 200 初始快照并进入 SQLite read。失败优先专项为 `5 failed, 9 passed`；最小修复在 API 边界复用固定 persona allowlist，扩展后的 13 类非法路径与 3 个合法 NPC 专项 `21 passed`、相关联合回归 `202 passed`，独立补丁复审 `NO FINDINGS`。最终统一门禁 `1319 passed`，ruff、73 文件 mypy、schema、Godot import/unit、9 健康 + 10 对话 + 三 NPC loopback、lock 与安全复检全部通过。
-- 未覆盖：远端 GitHub PR/CI/合并与最终归档尚在本次交付中执行；Qdrant/embedding、正式素材和生产部署不在范围。
+- F-007 Git 交付与归档已完成：四个可二分提交推送到 `feat/f-007-multi-npc-isolation`；PR #7 的 GitHub Linux `quality` 在 1m1s 内通过，并 squash merge 为 `a049a94ad2104a4629a8e201399bb66592319fc5`。归档任务卡和实施计划保留 Step 0—7、P1/P2、UAT 与最终门禁证据。
+- 未覆盖：Qdrant/embedding、正式素材、真实模型评估与生产部署不在 F-007 范围。
 
 ## 下一批准动作
 
-完成 F-007 可二分提交、推送、PR、GitHub Linux `quality`、squash merge 与最终文档归档；不进入 R-08 或部署。
+等待用户从 roadmap 选择下一候选任务。R-09 与 R-10 为最高优先级候选，但本次不自动起草任务卡、不进入 Step 0、不实现或部署。
