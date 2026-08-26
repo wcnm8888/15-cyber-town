@@ -12,6 +12,10 @@ from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 
 from cyber_town.application.dialogue import DialogueFailureKind, DialogueUseCaseError
+from cyber_town.application.observability import (
+    DialogueObservability,
+    ObservabilityRecorder,
+)
 from cyber_town.contracts.v1 import (
     ApiErrorCode,
     ApiErrorV1,
@@ -180,6 +184,11 @@ async def handle_validation_error(request: Request, exception: Exception) -> JSO
 
     if not isinstance(exception, RequestValidationError):
         raise TypeError("Unexpected validation exception type")
+    observability = cast(
+        DialogueObservability,
+        request.app.state.dialogue_observability,
+    )
+    observability.record_validation_failure(trace_id_for(request))
     return _error_response(
         request,
         status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
@@ -205,10 +214,18 @@ async def handle_unexpected_error(request: Request, exception: Exception) -> JSO
 def install_dialogue_boundary(
     application: FastAPI,
     dialogue_service: DialogueApplication | None,
+    *,
+    observability_recorder: ObservabilityRecorder | None = None,
 ) -> None:
     """Install the route, injectable use case and stable exception handlers."""
 
     application.state.dialogue_service = dialogue_service
+    service_observability = getattr(dialogue_service, "observability", None)
+    application.state.dialogue_observability = (
+        service_observability
+        if isinstance(service_observability, DialogueObservability)
+        else DialogueObservability(recorder=observability_recorder)
+    )
     application.include_router(router)
     application.add_exception_handler(DialogueUseCaseError, handle_dialogue_error)
     application.add_exception_handler(RequestValidationError, handle_validation_error)

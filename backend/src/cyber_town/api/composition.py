@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from cyber_town.application.dialogue import DialogueExecutionConfig, DialogueService
 from cyber_town.application.long_term_memory import LongTermMemoryRetriever, LongTermMemoryService
+from cyber_town.application.observability import ObservabilityRecorder, ProviderKind
 from cyber_town.application.provider import ProviderProtocol
 from cyber_town.application.relationship import RelationshipService
 from cyber_town.config import PROJECT_ROOT, LlmProvider, Settings
@@ -21,6 +22,9 @@ def build_dialogue_service(
     provider: ProviderProtocol | None = None,
     long_term_repository: SqliteLongTermMemoryRepository | None = None,
     relationship_repository: SqliteRelationshipRepository | None = None,
+    observability_recorder: ObservabilityRecorder | None = None,
+    observability_scope_key: bytes | None = None,
+    observability_provider_kind: ProviderKind | None = None,
 ) -> DialogueService | None:
     """Build the dialogue use case only when the approved provider is enabled."""
 
@@ -67,4 +71,11 @@ def build_dialogue_service(
         long_term_memory=LongTermMemoryService(repository=long_term_repository),
         long_term_retriever=LongTermMemoryRetriever(repository=long_term_repository),
         relationship_service=RelationshipService(repository=relationship_repository),
+        observability_recorder=observability_recorder,
+        observability_scope_key=observability_scope_key,
+        observability_provider_kind=(
+            observability_provider_kind
+            if observability_provider_kind is not None
+            else ProviderKind(settings.llm_provider.value)
+        ),
     )
