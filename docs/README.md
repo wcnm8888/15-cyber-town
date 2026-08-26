@@ -10,7 +10,7 @@
 - 当前状态：[`project-management/progress.md`](project-management/progress.md)
 - 验收证据：[`project-management/evidence.md`](project-management/evidence.md)
 
-`F-001`—`F-006` 已分别通过 PR #1—#6 完成交付和归档。F-006 功能提交 `f943af4` 经 PR #6 的 GitHub Linux `quality` 通过后，已 squash merge 到 `main` / `origin/main` 的 `3c2059aad7ef5a1e9dd0154ad49d2b0e93f8f47f`；最终 fake-only 本地门禁为 `1257 passed`。当前状态为 `git_delivery_authorized / F-007_multi_npc_isolation`：固定视口 P2 与交付前关系 GET allowlist P1 均已最小修复，三 NPC 用户窗口 UAT 和 `1319 passed` 最终统一门禁通过，Git 交付正在进行。未创建 `memory-bank/`，本 `docs/` 仍是唯一权威文档体系。
+`F-001`—`F-007` 已分别通过 PR #1—#7 完成交付并归档。F-007 的四个功能/文档提交经 PR #7 的 GitHub Linux `quality` 通过后，于 2026-08-26 squash merge 到 `main` / `origin/main` 的 `a049a94ad2104a4629a8e201399bb66592319fc5`；最终 fake-only 本地门禁为 `1319 passed`。任务卡与实施计划见 [`archive/task-cards/F-007-multi-npc-isolation.md`](archive/task-cards/F-007-multi-npc-isolation.md) 和 [`archive/task-cards/F-007-implementation-plan.md`](archive/task-cards/F-007-implementation-plan.md)。当前没有活动任务，等待用户从 roadmap 选择下一候选任务；未创建 `memory-bank/`，本 `docs/` 仍是唯一权威文档体系。
 
 ## 权威文档与更新规则
 

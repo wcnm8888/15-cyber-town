@@ -1,7 +1,9 @@
-# 当前实施计划
+# F-007 实施计划（归档）
 
-状态：`git_delivery_authorized / pending_commit_push_pr_ci_merge_archive`。
+状态：`archived / delivered / 2026-08-26`。
 
-Step 0—7 已完成。Step 7 首轮用户窗口 UAT 发现两行合法回复裁切 `Reason` 的 P2；失败优先修复仅调整输入最低高度和内容间距，重新 UAT 通过。Git 交付前审计又发现关系 GET 未对固定 persona 做 allowlist 校验的 P1；用户授权后已在 repository 前最小修复，定向红测、独立补丁复审和 `1319 passed` 最终统一门禁通过。当前仅执行可二分提交、推送、PR、远端 CI、合并和文档归档，不进入 R-08 或部署。
+F-007 Step 0—7 已完成。交付过程中先后关闭控制空白 `npc_id` 绕过 allowlist 的 P1、固定 640×400 视口裁切 `Reason` 的 P2，以及关系 GET 在持久化前未拒绝未知 NPC 的 P1；三项均以失败优先回归、独立复审或 UAT 证据收口。最终 fake-only 统一门禁为 `1319 passed`，Dialogue v1 与 SQLite migration 不变。
 
-F-006 实施计划已归档于 [`../archive/task-cards/F-006-implementation-plan.md`](../archive/task-cards/F-006-implementation-plan.md)。
+四个可二分提交 `a02bb4c`、`2fba507`、`f381316`、`15cef84` 已推送；PR #7 的 GitHub Linux `quality` 通过后，于 2026-08-26 squash merge 到 `main` / `origin/main` 的 `a049a94ad2104a4629a8e201399bb66592319fc5`。未进入部署或下一 roadmap 任务。
+
+完整范围、阶段记录与证据见 [`F-007-multi-npc-isolation.md`](F-007-multi-npc-isolation.md)。
