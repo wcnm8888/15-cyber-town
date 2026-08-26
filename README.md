@@ -2,7 +2,7 @@
 
 一个用于系统学习 Agent 工程的 AI NPC 赛博小镇项目。目标是在 Godot 场景中让玩家与具备角色、记忆和可审计行为边界的 NPC 交互。
 
-`F-001`—`F-007` 已分别通过 PR #1—#7 完成交付并归档。F-007 的固定三 persona、跨 player/NPC/conversation 隔离、Godot 选择与最小视口修复均已交付；关系 GET allowlist P1 已在持久化前关闭，最终本地统一门禁为 `1319 passed`。PR #7 的 GitHub Linux `quality` 通过后，于 2026-08-26 squash merge 到 `main` / `origin/main` 的 `a049a94ad2104a4629a8e201399bb66592319fc5`。当前没有活动任务；冻结的 Dialogue v1 JSON Schema 不变，全程 fake-only，不读取 `.env`、不调用真实模型。项目规则与当前事实见 [AGENTS.md](AGENTS.md) 和 [docs/README.md](docs/README.md)。
+`F-001`—`F-007` 已分别通过 PR #1—#7 完成交付并归档。F-007 的固定三 persona、跨 player/NPC/conversation 隔离、Godot 选择与最小视口修复均已交付；关系 GET allowlist P1 已在持久化前关闭，最终本地统一门禁为 `1319 passed`。PR #7 的 GitHub Linux `quality` 通过后，功能 squash merge 提交为 `a049a94ad2104a4629a8e201399bb66592319fc5`；PR #8 随后完成文档归档。当前没有活动任务；冻结的 Dialogue v1 JSON Schema 不变，全程 fake-only，不读取 `.env`、不调用真实模型。项目规则与当前事实见 [AGENTS.md](AGENTS.md) 和 [docs/README.md](docs/README.md)。
 
 当前统一验证命令：`uv run --frozen python scripts/quality.py`。它执行 Git ignore/敏感信息预检、lock、ruff、mypy、schema、Godot 导入与单测、9 个 F-002 健康 loopback、10 个对话 fake loopback、1 个三 NPC 切换 loopback、pytest 和最终策略复检；对话场景包含连续多轮与失败后的手动 Retry 恢复。每个质量子进程强制禁用 `.env`、剔除继承的 provider key 并固定 `LLM_PROVIDER=disabled`；对话集成仅使用本地 FastAPI 和 fake provider。需要 Godot 4.7.2，可通过 `CYBER_TOWN_GODOT` 指向 executable；Windows 默认也会检查本项目批准的便携路径。
 

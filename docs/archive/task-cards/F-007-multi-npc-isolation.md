@@ -2,7 +2,7 @@
 
 状态：`archived / delivered / 2026-08-26`。
 
-来源：已批准路线图的 `R-07`。Step 0—7 与 Git 交付均已完成；PR #7 的 GitHub Linux `quality` 通过后，于 2026-08-26 squash merge 到 `main` / `origin/main` 的 `a049a94ad2104a4629a8e201399bb66592319fc5`。
+来源：已批准路线图的 `R-07`。Step 0—7 与 Git 交付均已完成；PR #7 的 GitHub Linux `quality` 通过后，功能 squash merge 提交为 `a049a94ad2104a4629a8e201399bb66592319fc5`；本任务卡随后由 PR #8 归档，归档合并提交为 `59b7b8229dd3ad1d7ed82e5225b4fb1623462cb8`。
 
 ## 用户目标与可见价值
 

@@ -3,7 +3,7 @@
 ## 项目定位与阶段
 
 - 等级：L（多模块、Agent、状态持久化、安全与可观测性）。
-- 当前阶段：`delivered_and_archived / F-007_multi_npc_isolation / awaiting_next_task_selection`。F-001—F-007 已分别通过 PR #1—#7 交付；F-007 经 PR #7 的 GitHub Linux `quality` 通过后，于 2026-08-26 squash merge 到 `main` / `origin/main` 的 `a049a94ad2104a4629a8e201399bb66592319fc5`，并已完成任务卡与实施计划归档。当前没有活动任务；进入下一候选任务卡或 Step 0 前须取得用户授权。仍不得读取 `.env`、调用真实模型或复用 F-005 验收资源。
+- 当前阶段：`delivered_and_archived / F-007_multi_npc_isolation / awaiting_next_task_selection`。F-001—F-007 已分别通过 PR #1—#7 交付；F-007 的 PR #7 功能合并提交为 `a049a94ad2104a4629a8e201399bb66592319fc5`，任务卡与实施计划随后由 PR #8 归档。当前没有活动任务；进入下一候选任务卡或 Step 0 前须取得用户授权。仍不得读取 `.env`、调用真实模型或复用 F-005 验收资源。
 - 本项目是 Agent 工程学习项目，同时交付可运行、可交互、可验证的 AI NPC 小镇。
 
 ## 关键边界
