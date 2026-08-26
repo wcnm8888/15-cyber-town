@@ -4,7 +4,7 @@
 
 `F-001`—`F-006` 已分别通过 PR #1—#6 完成交付和归档；F-006 已由 PR #6 squash merge 到 `main` / `origin/main` 的 `3c2059aad7ef5a1e9dd0154ad49d2b0e93f8f47f`。F-007 Step 7 已完成：固定视口两行回复裁切 `Reason` 的 P2 通过最小 Godot 布局修复关闭，Nia、Ivo、Rhea 的真实窗口 UAT 通过；Git 交付前又关闭关系 GET 未在持久化前拒绝未知 NPC 的 P1，最终统一门禁为 `1319 passed`。Git 交付已获授权并进行中。冻结的 Dialogue v1 JSON Schema 不变；全程 fake-only，不读取 `.env`、不调用真实模型。项目规则与当前事实见 [AGENTS.md](AGENTS.md) 和 [docs/README.md](docs/README.md)。
 
-当前统一验证命令：`uv run --frozen python scripts/quality.py`。它执行 Git ignore/敏感信息预检、lock、ruff、mypy、schema、Godot 导入与单测、9 个 F-002 健康 loopback、10 个对话 fake loopback、pytest 和最终策略复检；对话场景包含连续多轮与失败后的手动 Retry 恢复。每个质量子进程强制禁用 `.env`、剔除继承的 provider key 并固定 `LLM_PROVIDER=disabled`；对话集成仅使用本地 FastAPI 和 fake provider。需要 Godot 4.7.2，可通过 `CYBER_TOWN_GODOT` 指向 executable；Windows 默认也会检查本项目批准的便携路径。
+当前统一验证命令：`uv run --frozen python scripts/quality.py`。它执行 Git ignore/敏感信息预检、lock、ruff、mypy、schema、Godot 导入与单测、9 个 F-002 健康 loopback、10 个对话 fake loopback、1 个三 NPC 切换 loopback、pytest 和最终策略复检；对话场景包含连续多轮与失败后的手动 Retry 恢复。每个质量子进程强制禁用 `.env`、剔除继承的 provider key 并固定 `LLM_PROVIDER=disabled`；对话集成仅使用本地 FastAPI 和 fake provider。需要 Godot 4.7.2，可通过 `CYBER_TOWN_GODOT` 指向 executable；Windows 默认也会检查本项目批准的便携路径。
 
 ## 本地验证
 

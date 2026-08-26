@@ -12,18 +12,18 @@ Godot（场景 / 输入 / 动画 / UI）
 
 Godot 不直连 LLM 或数据库；领域层不直接依赖 FastAPI、Godot、具体 LLM SDK 或 Qdrant。外部模型返回与工具参数一律作为不可信输入处理。
 
-## F-006 当前模块
+## F-007 当前模块
 
 | 模块 | 职责 | 不负责 |
 | --- | --- | --- |
-| `game/` | 最小场景、邻近交互、对话 UI、只读关系快照 | 角色推理、持久化、好感度规则 |
+| `game/` | 最小场景、固定 NPC 选择、对话 UI、只读关系快照与旧回调抑制 | 角色推理、持久化、好感度规则 |
 | `backend/api/` | HTTP schema、错误码、关联 trace_id | 业务策略与 SQL 细节 |
 | `backend/application/` | 显式记住/忘记、双元长期检索、三元 scope 进程内短期记忆、确定性关系记录/读取、统一 UTF-8 预算、并发、幂等、golden-set 评估与调用计量 | SQL 细节、HTTP、Godot 或具体 SDK |
-| `backend/domain/` | 固定 Nia persona、结构化长期事实/scope/status、受限关系分类/状态机、provider-neutral DTO/错误和严格 loader | 网络、ORM、LLM SDK |
+| `backend/domain/` | Nia/Ivo/Rhea 固定版本 persona registry、结构化长期事实/scope/status、受限关系分类/状态机、provider-neutral DTO/错误和严格 loader | 网络、ORM、LLM SDK |
 | `backend/infrastructure/llm/` | fake provider 与隔离 DeepSeek adapter、SDK 错误分类和 usage 转换 | 业务决策、持久化或原始 provider 对象外泄 |
 | `backend/infrastructure/persistence/` | 标准库 SQLite schema/repository、参数化事务、scope 隔离及跨进程验收调用台账 | 模型判断、完整聊天备份、向量检索或公开 API |
 
-当前 API 提供 `GET /api/v1/health`、冻结的 `POST /api/v1/dialogue`，以及新增只读 `GET /api/v1/relationships/{player_id}/{npc_id}?request_id=<optional UUID>`。公开 Dialogue v1 和其 JSON Schema 不变。只有已校验且 `completed` 的同次 provider completion 才传递其受限 `category + confidence` 内部建议；确定性引擎和单一 SQLite 事务拥有分值、冷却、事件与回放权，degraded/失败/取消不写关系。Godot 只读取快照，不持有 API key 或直连 provider/数据库。启用 provider 时默认 composition 按受限项目 `data/` 路径装配唯一标准库 SQLite；自动化始终使用 pytest 或短生命周期 loopback 临时数据库。多 NPC、embedding、Qdrant 和工具调用仍不存在。
+当前 API 提供 `GET /api/v1/health`、冻结的 `POST /api/v1/dialogue`，以及只读 `GET /api/v1/relationships/{player_id}/{npc_id}?request_id=<optional UUID>`。公开 Dialogue v1 和其 JSON Schema 不变。persona registry 只允许 `neon_guide / Nia`、`signal_archivist / Ivo`、`night_courier / Rhea`；未知或有损规范化的 `npc_id` 在 provider 和持久化前 fail-closed。只有已校验且 `completed` 的同次 provider completion 才传递其受限 `category + confidence` 内部建议；确定性引擎和单一 SQLite 事务拥有分值、冷却、事件与回放权，degraded/失败/取消不写关系。Godot 只读取快照，不持有 API key 或直连 provider/数据库。启用 provider 时默认 composition 按受限项目 `data/` 路径装配唯一标准库 SQLite；自动化始终使用 pytest 或短生命周期 loopback 临时数据库。embedding、Qdrant、工具调用和 NPC 自主对话仍不存在。
 
 ## 工程门禁边界
 
@@ -43,7 +43,7 @@ Godot 不直连 LLM 或数据库；领域层不直接依赖 FastAPI、Godot、�
 
 - 工作记忆作用域固定为完整 `(player_id, npc_id, conversation_id)`；长期事实作用域固定为 `(player_id, npc_id)`，允许同玩家/NPC 跨 conversation 及服务重启召回，禁止跨 player/NPC 泄漏。
 - F-004 在当前进程内为每个 scope 保留最近 6 个成功完成的完整 user/assistant 回合；最多 128 个活动会话、idle TTL 1800 秒、过期优先和确定性 LRU；在途 session 不得驱逐，无法安全回收时返回可重试 503。
-- 上下文预算按 `64 + system + untrusted_long_term_facts + history + current + 256 <= 8192` 估算，每条消息额外 16 单位加 UTF-8 字节；长期事实最多 2048。这不是 provider 官方 token 数。唯一 Nia persona system 和当前 user 不裁剪；长期事实只作为不可信 user 数据整条加入，历史只按完整回合从新到旧选择、从旧到新发送。
+- 上下文预算按 `64 + system + untrusted_long_term_facts + history + current + 256 <= 8192` 估算，每条消息额外 16 单位加 UTF-8 字节；长期事实最多 2048。这不是 provider 官方 token 数。与当前 `npc_id` 严格对应的唯一 persona system 和当前 user 不裁剪；长期事实只作为不可信 user 数据整条加入，历史只按完整回合从新到旧选择、从旧到新发送。
 - 同 scope 请求串行，最多等待 2 秒；跨 scope 可并发但 provider 全局上限 2。仅 `completed` 成功请求提交完整回合；degraded、timeout、无效响应、失败、取消、孤儿和晚到结果均不写入。
 - 每次 HTTP 尝试生成独立 `trace_id`；客户端 `request_id` 标识逻辑请求。进程内幂等 TTL 10 分钟、最多 256 项，同 ID 同 payload 合并/复用，同 ID 不同 payload 返回冲突。
 - 进程重启后对话幂等缓存和短期工作记忆均丢失；显式批准的低敏感长期事实与记住/忘记 operation 通过 SQLite 持久化，并可跨进程恢复。真实 provider 调用须通过另一份 metadata-only SQLite 台账原子预留/结算；两类数据均需 Git 忽略，自动化只创建 pytest 临时数据库。

@@ -13,7 +13,7 @@
 - NPC 的 persona 与玩家关系按 `npc_id + player_id` 隔离；F-004 短期工作记忆必须完整使用 `player_id + npc_id + conversation_id` 三元 scope；模型客户端可共享。
 - LLM 输出是未可信输入：必须经 schema、策略和确定性规则校验，不能直接写入游戏状态。
 - 不把完整聊天记录或向量相似度当作长期记忆；不将原始敏感对话写入普通日志。
-- 首版只做玩家—单 NPC 对话，不引入 NPC 自主协作、批量生成或 WebSocket。
+- 当前只做玩家与所选固定 NPC 的一对一对话，不引入 NPC 自主协作、批量生成或 WebSocket。
 
 ## 工作方式
 
