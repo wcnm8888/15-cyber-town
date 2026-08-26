@@ -7,7 +7,7 @@ from cyber_town.application.long_term_memory import LongTermMemoryRetriever, Lon
 from cyber_town.application.provider import ProviderProtocol
 from cyber_town.application.relationship import RelationshipService
 from cyber_town.config import PROJECT_ROOT, LlmProvider, Settings
-from cyber_town.domain.persona import load_bundled_persona
+from cyber_town.domain.persona import load_bundled_personas
 from cyber_town.infrastructure.llm.deepseek import DeepSeekProvider
 from cyber_town.infrastructure.persistence.sqlite_long_term_memory import (
     SqliteLongTermMemoryRepository,
@@ -52,9 +52,8 @@ def build_dialogue_service(
         )
         relationship_repository.initialize()
 
-    persona = load_bundled_persona("nia_v1.json")
     return DialogueService(
-        personas={persona.npc_id: persona},
+        personas=load_bundled_personas(),
         provider=provider,
         config=DialogueExecutionConfig(
             model=settings.llm_model,

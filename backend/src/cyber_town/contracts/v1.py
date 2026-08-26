@@ -61,6 +61,15 @@ ScopedIdentifier = Annotated[
         pattern=r"\S",
     ),
 ]
+RequestNpcIdentifier = Annotated[
+    str,
+    StringConstraints(
+        strict=True,
+        min_length=1,
+        max_length=64,
+        pattern=r"\S",
+    ),
+]
 DialogueMessage = Annotated[
     str,
     StringConstraints(
@@ -133,7 +142,7 @@ class DialogueRequestV1(StrictContract):
 
     request_id: CanonicalUUID
     player_id: ScopedIdentifier
-    npc_id: ScopedIdentifier
+    npc_id: RequestNpcIdentifier
     conversation_id: CanonicalUUID
     message: DialogueMessage
 
@@ -146,6 +155,13 @@ class DialogueRequestV1(StrictContract):
     @classmethod
     def require_raw_identifier_budget(cls, value: object) -> object:
         return _require_raw_string_length(value, 64)
+
+    @field_validator("npc_id", mode="before")
+    @classmethod
+    def reject_normalizing_npc_id(cls, value: object) -> object:
+        if isinstance(value, str) and value != value.strip():
+            raise ValueError("NPC identifier cannot contain surrounding whitespace")
+        return value
 
     @field_validator("message", mode="before")
     @classmethod
